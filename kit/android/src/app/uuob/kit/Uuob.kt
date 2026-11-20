@@ -1,10 +1,15 @@
 package app.uuob.kit
 
+import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import app.uuob.client.UuobClient
 import app.uuob.client.UuobException
+import app.uuob.client.UuobProver
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,6 +44,7 @@ object Uuob {
     if (::client.isInitialized) return
     this.app = app
     client = UuobClient(app.id, app.name, ctx.packageName, ctx.filesDir.absolutePath)
+    client.setProver(Prover(ctx.applicationContext))
     scope.launch {
       while (true) changes.emit(JSONObject(client.nextEvent()))
     }
@@ -57,6 +63,30 @@ object Uuob {
   suspend fun share(ctx: Context, container: String) {
     if (!client.remote()) open(ctx, "share")
     client.share(container)
+  }
+}
+
+/**
+ * Another app could listen on UUOB's port while UUOB is not running and
+ * collect what apps send there. So the SDK sends nothing to the port until
+ * the server there answers a random nonce as UUOB answers it here: an ordered
+ * broadcast to app.uuob (its ProveReceiver), which only the real UUOB
+ * receives. Called by the SDK off the main thread; it waits for the answer.
+ */
+private class Prover(private val ctx: Context) : UuobProver {
+  override fun prove(nonce: String): String? {
+    val done = CountDownLatch(1)
+    var answer: String? = null
+    val intent = Intent("app.uuob.PROVE").setPackage("app.uuob").putExtra("nonce", nonce).addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+    val receiver = object : BroadcastReceiver() {
+      override fun onReceive(c: Context, i: Intent) {
+        answer = resultData
+        done.countDown()
+      }
+    }
+    ctx.sendOrderedBroadcast(intent, null, receiver, null, Activity.RESULT_OK, null, null)
+    done.await(10, TimeUnit.SECONDS)
+    return answer
   }
 }
 

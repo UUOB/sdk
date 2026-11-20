@@ -57,7 +57,6 @@ fn reads_writes_and_sends_later_what_changed_while_uuob_was_away() {
             device_name: "A".into(),
             platform: "linux".into(),
             net: NetMode::Local(MemoryLookup::new()),
-            keystore: None,
         })
         .await
         .unwrap();

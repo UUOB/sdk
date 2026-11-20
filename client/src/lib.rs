@@ -123,22 +123,16 @@ fn default_settings() -> Json {
     json!({ "hour12": false, "sunday_first": false })
 }
 
-/// The port of the UUOB app on this device, for this user: 7745, plus the
-/// profile number on Android. Must match `uuob_api::port()`.
+/// The port of the UUOB app on this device, for this user (UUOB's own rule,
+/// `uuob_core::local_port`), unless `UUOB_PORT` names another.
 pub fn local_port() -> u16 {
-    if let Some(p) = std::env::var("UUOB_PORT").ok().and_then(|p| p.parse().ok()) {
-        return p;
-    }
-    #[cfg(target_os = "android")]
-    {
-        unsafe extern "C" {
-            safe fn getuid() -> u32;
-        }
-        return 7745 + (getuid() / 100_000) as u16;
-    }
-    #[allow(unreachable_code)]
-    7745
+    std::env::var("UUOB_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or_else(uuob_core::local_port)
 }
+
+/// Asks UUOB on this device, through the system, for its answer to a nonce
+/// (Android: an ordered broadcast to app.uuob, which only the real UUOB
+/// receives). Blocking. `None`: UUOB isn't installed, or its port isn't its own.
+pub type Prover = Arc<dyn Fn(String) -> Option<String> + Send + Sync>;
 
 /// A new record id, as `uuob.js` makes them: 16 characters of a–z, 2–7.
 pub fn new_id() -> String {
@@ -171,6 +165,10 @@ struct Inner {
     upcoming: tokio::sync::Mutex<Option<String>>,
     settings_changes: AtomicU64,
     android_given: AtomicBool,
+    /// Set on Android (see [`Client::set_prover`]).
+    prover: Mutex<Option<Prover>>,
+    /// The server on the port has proven it is UUOB (or there is no need to).
+    trusted: AtomicBool,
 }
 
 impl Client {
@@ -197,6 +195,8 @@ impl Client {
             upcoming: tokio::sync::Mutex::new(None),
             settings_changes: AtomicU64::new(0),
             android_given: AtomicBool::new(false),
+            prover: Mutex::new(None),
+            trusted: AtomicBool::new(true),
         }))
     }
 
@@ -267,15 +267,52 @@ impl Client {
         *self.0.located.lock().unwrap() = Arc::new(OnceCell::new());
     }
 
+    /// On Android: check with UUOB itself, through the system, before
+    /// anything is sent to its port. Another app could take the port while
+    /// UUOB is not running and collect what apps send there.
+    pub fn set_prover(&self, prover: Prover) {
+        *self.0.prover.lock().unwrap() = Some(prover);
+        self.0.trusted.store(false, Relaxed);
+    }
+
+    /// The port, once the server on it has proven it is UUOB: it answers a
+    /// random nonce as UUOB on this device answers it through the system (see
+    /// `uuob_api::proof`). A tunnel to another device is the app's own.
+    async fn verified_port(&self) -> Result<u16> {
+        let port = self.port().await;
+        let prover = self.0.prover.lock().unwrap().clone();
+        let Some(prover) = prover.filter(|_| !self.0.trusted.load(Relaxed)) else { return Ok(port) };
+        let nonce = new_id();
+        let res = http::send(port, &format!("?prove={nonce}"), None, None).await.map_err(|_| Error::unreachable())?;
+        let (_, bytes) = http::read(res).await.map_err(|_| Error::unreachable())?;
+        let hello: Json = serde_json::from_slice(&bytes).unwrap_or(json!({}));
+        if !hello["remote"].as_bool().unwrap_or(false) {
+            let mine = tokio::task::spawn_blocking(move || prover(nonce)).await.ok().flatten();
+            if mine.is_none() || mine.as_deref() != hello["proof"].as_str() {
+                return Err(Error::new("unreachable", "Another app is using UUOB’s port, so nothing was sent to it"));
+            }
+        }
+        self.0.trusted.store(true, Relaxed);
+        Ok(port)
+    }
+
+    /// UUOB went away: whatever answers on its port next proves itself again.
+    fn lost(&self) -> Error {
+        if self.0.prover.lock().unwrap().is_some() {
+            self.0.trusted.store(false, Relaxed);
+        }
+        Error::unreachable()
+    }
+
     // ---- Requests ------------------------------------------------------
 
     /// One request to UUOB's API (`path` after `/api`); `body` is JSON unless
     /// it comes with its own type (a file).
     async fn request(&self, path: &str, body: Option<(Vec<u8>, &str)>) -> Result<Json> {
-        let port = self.port().await;
+        let port = self.verified_port().await?;
         let token = self.token();
-        let res = http::send(port, path, token.as_deref(), body).await.map_err(|_| Error::unreachable())?;
-        let (status, bytes) = http::read(res).await.map_err(|_| Error::unreachable())?;
+        let res = http::send(port, path, token.as_deref(), body).await.map_err(|_| self.lost())?;
+        let (status, bytes) = http::read(res).await.map_err(|_| self.lost())?;
         let data: Json = serde_json::from_slice(&bytes).unwrap_or(json!({}));
         if status == 401 {
             self.forget();
@@ -446,9 +483,12 @@ impl Client {
         let c = self.clone();
         let task = runtime().spawn(async move {
             loop {
-                let port = c.port().await;
                 let token = c.token();
-                if let Ok(res) = http::send(port, "/events", token.as_deref(), None).await {
+                let sent = match c.verified_port().await {
+                    Ok(port) => http::send(port, "/events", token.as_deref(), None).await.map_err(|_| c.lost()).ok(),
+                    Err(_) => None,
+                };
+                if let Some(res) = sent {
                     if res.status() == 401 {
                         c.forget();
                         return;
@@ -545,7 +585,7 @@ impl Client {
     }
 
     /// Sends what waited. A change to a record that was deleted meanwhile is
-    /// dropped, as is one UUOB refuses; if UUOB goes away again the rest waits.
+    /// dropped, as is one UUOB refuses; on any other error the rest waits.
     async fn flush(&self) {
         let Ok(_g) = self.0.flushing.try_lock() else { return };
         if self.0.store.outbox().is_empty() {
@@ -574,8 +614,10 @@ impl Client {
                     Err(e) => Err(e),
                 }
             };
+            // Only a refusal drops a change; anything else (UUOB away, a full
+            // disk, …) keeps it waiting for the next try.
             if let Err(e) = r
-                && e.is_unreachable()
+                && !matches!(e.code(), "permission_denied" | "not_found" | "invalid")
             {
                 return;
             }
@@ -807,7 +849,8 @@ impl Client {
     /// client; ranges work).
     pub async fn file_url(&self, container: Option<&str>, id: &str) -> String {
         let c = self.clone();
-        let port = on_runtime(async move { c.port().await }).await;
+        // The address carries the app's key: none until the port is proven.
+        let Ok(port) = on_runtime(async move { c.verified_port().await }).await else { return String::new() };
         let own = self.own(container);
         format!("http://127.0.0.1:{port}/api/files/{}?container={}&key={}", encode(id), encode(&own), self.token().unwrap_or_default())
     }
@@ -817,9 +860,9 @@ impl Client {
         let c = self.clone();
         let path = format!("/files/{}?container={}&key={}", encode(id), encode(&self.own(container)), self.token().unwrap_or_default());
         on_runtime(async move {
-            let port = c.port().await;
-            let res = http::send(port, &path, None, None).await.map_err(|_| Error::unreachable())?;
-            let (status, bytes) = http::read(res).await.map_err(|_| Error::unreachable())?;
+            let port = c.verified_port().await?;
+            let res = http::send(port, &path, None, None).await.map_err(|_| c.lost())?;
+            let (status, bytes) = http::read(res).await.map_err(|_| c.lost())?;
             if status >= 400 {
                 let data: Json = serde_json::from_slice(&bytes).unwrap_or(json!({}));
                 let code = data["error"]["code"].as_str().unwrap_or("unavailable");

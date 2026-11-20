@@ -149,6 +149,8 @@ fun Gate(updater: Updater, content: @Composable () -> Unit) {
           step = Step.Connect
         } else {
           error = e.userMessage
+          // Connected before (or refused): only a code from UUOB connects it now.
+          if (!withCode && e.code == "permission_denied") useCode = true
           // A refused code leaves the user where they typed it.
           step = if (e.code == "unreachable") Step.Unreachable else if (withCode) from else Step.Connect
         }

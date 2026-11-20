@@ -409,6 +409,10 @@ impl Gate {
                 Err(e) if e.code() == "cancelled" => g.set(Step::Connect),
                 Err(e) => {
                     *g.0.error.borrow_mut() = e.to_string();
+                    // Connected before (or refused): only a code from UUOB connects it now.
+                    if !with_code && e.code() == "permission_denied" {
+                        g.0.use_code.set(true);
+                    }
                     // A refused code leaves the user where they typed it.
                     g.set(if e.code() == "unreachable" { Step::Unreachable } else if with_code { from } else { Step::Connect });
                 }

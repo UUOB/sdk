@@ -24,6 +24,13 @@ fn opt(s: &Option<String>) -> Option<&str> {
     s.as_deref().filter(|s| !s.is_empty())
 }
 
+/// Android: asks UUOB on this phone, through the system, for its answer to
+/// `nonce` (see `Client::set_prover`). Blocking; null if there is none.
+#[uniffi::export(with_foreign)]
+pub trait UuobProver: Send + Sync {
+    fn prove(&self, nonce: String) -> Option<String>;
+}
+
 #[derive(uniffi::Object)]
 pub struct UuobClient {
     client: Client,
@@ -50,6 +57,12 @@ impl UuobClient {
 
     pub fn has_token(&self) -> bool {
         self.client.has_token()
+    }
+
+    /// Android: nothing is sent to UUOB's port until the server there
+    /// proves, through `prover`, that it is UUOB.
+    pub fn set_prover(&self, prover: Arc<dyn UuobProver>) {
+        self.client.set_prover(Arc::new(move |nonce| prover.prove(nonce)));
     }
 
     pub fn device(&self) -> Option<String> {

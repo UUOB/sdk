@@ -192,6 +192,8 @@ struct Gate<Content: View>: View {
                     step = .connect
                 } else {
                     self.error = error.userMessage
+                    // Connected before (or refused): only a code from UUOB connects it now.
+                    if !withCode && error.code == "permission_denied" { useCode = true }
                     // A refused code leaves the user where they typed it.
                     step = error.code == "unreachable" ? .unreachable : withCode ? from : .connect
                 }

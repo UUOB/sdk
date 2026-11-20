@@ -11,7 +11,7 @@ crate-type = ["rlib"]
 [dependencies]
 # UUOB's core, for the tunnel to another device's UUOB and the types it
 # shares with UUOB. A library at a fixed version, not a copy.
-uuob-core = { git = "https://github.com/UUOB/uuob", rev = "c56c6a4c3a049fb2b1672d4601eb4cba6123f83b" }
+uuob-core = { git = "https://github.com/UUOB/uuob", rev = "cdb739cf13abf562cf22c47c83e6e73020fd8bce" }
 uniffi = "0.32"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
@@ -38,7 +38,7 @@ tar = "0.4"
 flate2 = "1"
 
 [dev-dependencies]
-uuob-api = { git = "https://github.com/UUOB/uuob", rev = "c56c6a4c3a049fb2b1672d4601eb4cba6123f83b" }
+uuob-api = { git = "https://github.com/UUOB/uuob", rev = "cdb739cf13abf562cf22c47c83e6e73020fd8bce" }
 axum = "0.8"
 tempfile = "3"
 minisign = "0.7"
