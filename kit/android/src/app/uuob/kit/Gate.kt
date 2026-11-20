@@ -223,28 +223,21 @@ fun Gate(updater: Updater, content: @Composable () -> Unit) {
       when (step) {
         Step.Unreachable -> {
           Title("${app.name} needs UUOB")
-          Lead("${app.name} has no server of its own. It keeps your ${app.noun} in UUOB, on your own devices, end-to-end encrypted.")
           Lead("Install UUOB on this device and open it.")
           Looking("Looking for UUOB…")
           OutlinedButton(onClick = { Uuob.open(ctx, "connect") }, Modifier.fillMaxWidth().height(52.dp)) { Text("Open UUOB") }
           HorizontalDivider(Modifier.padding(top = 32.dp, bottom = 28.dp))
           Text("Or use UUOB on another device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-          Text(
-            "In UUOB there, open Apps, choose Connect with a code, and type the code here.",
-            Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-          )
           codeForm()
           Error(error)
         }
         Step.Waiting -> {
           Title("Allow it in UUOB")
-          Lead("UUOB is asking whether ${app.name} may keep its ${app.noun} in your network.")
           Looking("Waiting for your answer…")
           OutlinedButton(onClick = { client.cancelConnect(); connecting?.cancel(); step = Step.Connect }, Modifier.fillMaxWidth().height(52.dp)) { Text("Cancel") }
         }
         else -> {
           Title("Connect ${app.name}")
-          Lead("${app.name} has no server of its own. Your ${app.noun} live in UUOB, on your own devices, end-to-end encrypted.")
           Row(Modifier.padding(top = 22.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(Colors.ok))
             Text("  UUOB is running on ${client.device() ?: "this device"}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -253,7 +246,6 @@ fun Gate(updater: Updater, content: @Composable () -> Unit) {
           Error(error)
           if (useCode) {
             codeForm()
-            Text("In UUOB, open Apps and choose Connect with a code.", Modifier.padding(top = 10.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           } else {
             TextButton(onClick = { useCode = true }, Modifier.padding(top = 18.dp)) { Text("Use a code instead") }
           }

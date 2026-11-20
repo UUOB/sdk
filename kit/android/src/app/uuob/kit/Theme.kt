@@ -12,6 +12,8 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -67,6 +69,13 @@ object Pill {
   @Composable fun danger() = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f), contentColor = MaterialTheme.colorScheme.error)
 }
 
+/** The same theme with another accent (a list's colour, say): buttons, ticks and pluses follow it. */
+@Composable
+fun Accent(color: Color, content: @Composable () -> Unit) {
+  val c = MaterialTheme.colorScheme
+  MaterialTheme(colorScheme = c.copy(primary = color, primaryContainer = color.copy(alpha = if (Colors.dark) 0.16f else 0.12f)), typography = MaterialTheme.typography, content = content)
+}
+
 /** UUOB's light and dark palettes (tokens.css), whatever the phone's wallpaper. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -108,5 +117,8 @@ fun AppTheme(@Suppress("UNUSED_PARAMETER") accent: Color, content: @Composable (
     labelMedium = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
     labelLarge = base.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
   )
-  MaterialExpressiveTheme(colorScheme = colors, typography = type, motionScheme = MotionScheme.expressive(), content = content)
+  MaterialExpressiveTheme(colorScheme = colors, typography = type, motionScheme = MotionScheme.expressive()) {
+    // Screens draw on the page, not in a Surface: text must still follow light and dark.
+    CompositionLocalProvider(LocalContentColor provides colors.onBackground, content = content)
+  }
 }

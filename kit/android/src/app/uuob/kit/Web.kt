@@ -130,7 +130,7 @@ fun Icon24(name: String, modifier: Modifier = Modifier, size: Dp = 22.dp, stroke
 
 /** Shrinks a little while pressed (`:active { transform: scale(0.97) }`). */
 @Composable
-private fun pressScale(source: MutableInteractionSource, to: Float = 0.97f): Float {
+internal fun pressScale(source: MutableInteractionSource, to: Float = 0.97f): Float {
   val pressed by source.collectIsPressedAsState()
   return animateFloatAsState(if (pressed) to else 1f, spring(stiffness = Spring.StiffnessMediumLow), label = "press").value
 }
@@ -259,7 +259,7 @@ fun Check(on: Boolean, ring: Color?, onClick: () -> Unit, modifier: Modifier = M
   val source = remember { MutableInteractionSource() }
   val k = pressScale(source, 0.85f)
   val color = ring ?: MaterialTheme.colorScheme.primary
-  val fill by animateColorAsState(if (on) color else Color.Transparent, tween(200), label = "check")
+  val fill by animateColorAsState(if (on) color else Color.Transparent, tween(120), label = "check")
   val edge = if (on) color else ring ?: Tokens.text3
   Box(
     modifier.scale(k).size(22.dp).graphicsLayer { alpha = if (enabled) 1f else 0.45f }
@@ -278,9 +278,10 @@ fun Check(on: Boolean, ring: Color?, onClick: () -> Unit, modifier: Modifier = M
 /** `.switch`: iOS's switch, green when on. */
 @Composable
 fun WebSwitch(on: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-  val x by animateDpAsState(if (on) 20.dp else 0.dp, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow), label = "knob")
-  val bg by animateColorAsState(if (on) Colors.ok else if (Colors.dark) Color(0x24FFFFFF) else Color(0x24000000), tween(200), label = "track")
-  Box(modifier.size(51.dp, 31.dp).clip(Pill.shape).background(bg).clickable { onChange(!on) }) {
+  val x by animateDpAsState(if (on) 20.dp else 0.dp, spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium), label = "knob")
+  val bg by animateColorAsState(if (on) Colors.ok else if (Colors.dark) Color(0x24FFFFFF) else Color(0x24000000), tween(120), label = "track")
+  // No ripple: it lingered over the track and made the switch feel slow.
+  Box(modifier.size(51.dp, 31.dp).clip(Pill.shape).background(bg).clickable(remember { MutableInteractionSource() }, null) { onChange(!on) }) {
     Box(Modifier.offset(x = 2.dp + x, y = 2.dp).size(27.dp).shadow(3.dp, CircleShape).clip(CircleShape).background(Color.White))
   }
 }
@@ -335,7 +336,7 @@ fun Empty(glyph: String, headline: String, caption: String, modifier: Modifier =
   Column(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 64.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Text(glyph, fontSize = 44.sp)
     Text(headline, fontWeight = FontWeight.SemiBold, color = Tokens.text2)
-    Text(caption, fontSize = 13.sp, color = Tokens.text2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    if (caption.isNotEmpty()) Text(caption, fontSize = 13.sp, color = Tokens.text2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
   }
 }
 

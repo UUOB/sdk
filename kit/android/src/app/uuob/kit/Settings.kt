@@ -27,6 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.scale
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -90,7 +93,7 @@ fun SettingsSheet(onClose: () -> Unit, week: Boolean = false, content: @Composab
       Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, modifier = Modifier.weight(1f))
       IconBtn("close", onClose, size = 19.dp)
     }
-    SettingsGroup("All your apps", "Every app follows these, on all your devices.") {
+    SettingsGroup("All your apps") {
       SettingsRow("Time") {
         Segmented(listOf("14:30", "2:30 PM"), if (UuobSettings.hour12) 1 else 0) { UuobSettings.set(JSONObject().put("hour12", it == 1)) }
       }
@@ -101,7 +104,7 @@ fun SettingsSheet(onClose: () -> Unit, week: Boolean = false, content: @Composab
       }
     }
     content()
-    SettingsGroup("About", "Open source: github.com/UUOB") {
+    SettingsGroup("About") {
       SettingsRow(app.name) { Text("Version ${app.version}", fontSize = 15.sp, color = Tokens.text2) }
     }
   }
@@ -139,22 +142,26 @@ fun SettingsRow(label: String, first: Boolean = true, trailing: @Composable () -
 
 /** A row of choices, one of them on (`.segmented`: the chosen one raised on a grey track). */
 @Composable
-fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifier, fill: Boolean = false, onSelect: (Int) -> Unit) {
+  // Moves at once: the screen behind it may take a moment to follow.
+  var shown by remember(selected) { mutableStateOf(selected) }
   Row(
-    Modifier.clip(RoundedCornerShape(10.dp)).background(Tokens.surface2).padding(3.dp),
+    modifier.clip(RoundedCornerShape(10.dp)).background(Tokens.surface2).padding(3.dp),
     horizontalArrangement = Arrangement.spacedBy(2.dp),
   ) {
     options.forEachIndexed { i, label ->
-      val on = i == selected
+      val on = i == shown
+      val source = remember { MutableInteractionSource() }
       Box(
-        Modifier.shadow(if (on) 1.5.dp else 0.dp, RoundedCornerShape(8.dp))
+        // `fill`: the choices share the width evenly (many of them on a phone).
+        (if (fill) Modifier.weight(1f) else Modifier).scale(pressScale(source, 0.96f)).shadow(if (on) 1.5.dp else 0.dp, RoundedCornerShape(8.dp))
           .clip(RoundedCornerShape(8.dp))
           .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
-          .clickable { onSelect(i) }
-          .padding(horizontal = 14.dp, vertical = 6.dp),
+          .clickable(source, null) { if (i != shown) { shown = i; onSelect(i) } }
+          .padding(horizontal = if (fill) 4.dp else 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
       ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (on) MaterialTheme.colorScheme.onSurface else Tokens.text2, maxLines = 1)
+        Text(label, fontSize = if (fill && options.size > 4) 13.sp else 14.sp, fontWeight = FontWeight.Medium, color = if (on) MaterialTheme.colorScheme.onSurface else Tokens.text2, maxLines = 1, softWrap = false)
       }
     }
   }
