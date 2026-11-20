@@ -1,0 +1,44 @@
+[package]
+name = "uuob-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The UUOB SDK for native apps: what ui/uuob.js is for a web UI, in Rust, for Kotlin and Swift through UniFFI."
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# UUOB's core, for the tunnel to another device's UUOB and the types it
+# shares with UUOB. A library at a fixed version, not a copy.
+uuob-core = { git = "https://github.com/UUOB/uuob", rev = "c56c6a4c3a049fb2b1672d4601eb4cba6123f83b" }
+uniffi = "0.32"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+# Plain HTTP to UUOB on 127.0.0.1 (or the tunnel to another device's UUOB).
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+rand = "0.8"
+hex = "0.4"
+# In-app updates: the same feed and signatures as before (src/update/feed.rs).
+ureq = "3"
+semver = "1"
+minisign-verify = "0.2"
+base64 = "0.22"
+# Dates and quick-add text (ui/dates.js).
+jiff = "0.2"
+regex-lite = "0.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tar = "0.4"
+flate2 = "1"
+
+[dev-dependencies]
+uuob-api = { git = "https://github.com/UUOB/uuob", rev = "c56c6a4c3a049fb2b1672d4601eb4cba6123f83b" }
+axum = "0.8"
+tempfile = "3"
+minisign = "0.7"

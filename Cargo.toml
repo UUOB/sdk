@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+# kit/linux is its own workspace: it needs GTK 4 and Libadwaita, which plain
+# `cargo build` and `cargo test` here leave out.
+members = ["client"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"

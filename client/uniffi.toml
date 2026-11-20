@@ -1,0 +1,7 @@
+# How UniFFI names the SDK's bindings inside an app (the app's own library
+# carries it, so the library name comes from the app's build).
+[bindings.kotlin]
+package_name = "app.uuob.client"
+
+[bindings.swift]
+module_name = "UuobClient"
