@@ -106,12 +106,12 @@ final class Uuob: @unchecked Sendable {
 extension Error {
     /// A failed call's message, for the user.
     var userMessage: String {
-        if case UuobError.Failed(_, let detail) = self { return detail }
+        if let e = self as? UuobError, case .Failed(_, let detail) = e { return detail }
         return localizedDescription
     }
     /// `unreachable`, `cancelled`, … ("" for other failures).
     var code: String {
-        if case UuobError.Failed(let code, _) = self { return code }
+        if let e = self as? UuobError, case .Failed(let code, _) = e { return code }
         return ""
     }
 }
