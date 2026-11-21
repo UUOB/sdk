@@ -1,5 +1,7 @@
 package app.uuob.kit
 
+import androidx.compose.ui.unit.dp
+
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.sp
@@ -36,6 +38,7 @@ fun TimeField(
   label: String? = null,
   placeholder: String = "",
   optional: Boolean = false,
+  plain: Boolean = false,
 ) {
   val hour12 = UuobSettings.hour12
   fun shown() = value?.let { friendlyTime(it, hour12) } ?: ""
@@ -77,7 +80,10 @@ fun TimeField(
       }
     },
     placeholder = placeholder,
-    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp),
+    // `plain`: no box, as in a row of the edit window.
+    border = !plain,
+    minHeight = if (plain) 40.dp else 46.dp,
+    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, textAlign = if (plain) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start),
     keyboardOptions = KeyboardOptions(keyboardType = if (hour12) KeyboardType.Text else KeyboardType.Decimal, imeAction = ImeAction.Done),
     keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
   )

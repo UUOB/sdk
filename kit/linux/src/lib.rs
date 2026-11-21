@@ -152,6 +152,14 @@ entry.field.field-title, entry.field.field-title:focus-within { font-size: 22px;
 .web-rows > .web-row { min-height: 56px; padding: 14px 18px; }
 .web-rows > .web-row:not(:first-child) { border-top: 1px solid @uuob_line; }
 .web-row-title { font-size: 16px; font-weight: 600; }
+/* Rows as the event card draws them: an icon, the content, a hairline under it; no boxes. */
+.icon-row { min-height: 44px; padding: 2px 0; border-bottom: 1px solid @uuob_line; }
+.icon-row.last { border-bottom: none; }
+/* Controls in a row are flat, as on the card: the lines are enough. */
+.icon-row .field, .icon-row entry.field, .icon-row textview.field, .icon-row menubutton.field > button, .icon-row dropdown.field > button { background: transparent; border: none; box-shadow: none; outline: none; }
+.icon-row .field:focus-within { background: @uuob_surface2; }
+.icon-row-title { font-size: 15px; }
+.rows-label { font-size: 12px; font-weight: 600; color: @uuob_text3; letter-spacing: 0.5px; margin-top: 18px; margin-bottom: 2px; }
 toast { background: @dialog_bg_color; color: @window_fg_color; border: 1px solid alpha(@window_fg_color, 0.14); border-radius: 999px; box-shadow: 0 8px 28px rgba(0,0,0,0.25); padding: 6px 8px 6px 20px; font-size: 15px; font-weight: 500; }
 toast > button.circular { background: none; color: @uuob_text3; min-width: 24px; min-height: 24px; }
 .fg-text { color: @window_fg_color; } .fg-text2 { color: @uuob_text2; } .fg-text3 { color: @uuob_text3; } .fg-accent { color: @accent_color; } .fg-danger { color: @destructive_color; }
@@ -463,7 +471,6 @@ impl Gate {
         column.append(&pair);
 
         let name = &i.info.name;
-        let noun = &i.info.noun;
         let title = |t: &str| gtk::Label::builder().label(t).wrap(true).justify(gtk::Justification::Center).css_classes(["large-title"]).build();
         let lead = |t: &str| gtk::Label::builder().label(t).wrap(true).justify(gtk::Justification::Center).css_classes(["uuob-lead", "dim-label"]).build();
         let wide = |label: &str, suggested: bool| {
@@ -514,18 +521,15 @@ impl Gate {
         match i.step.get() {
             Step::Unreachable => {
                 column.append(&title(&format!("{name} needs UUOB")));
-                column.append(&lead(&format!("{name} has no server of its own. It keeps your {noun} in UUOB, on your own devices, end-to-end encrypted.")));
                 column.append(&lead("Install UUOB on this device and open it."));
                 column.append(&looking("Looking for UUOB…"));
                 column.append(&gtk::Separator::builder().margin_top(32).margin_bottom(28).build());
                 column.append(&gtk::Label::builder().label("Or use UUOB on another device").css_classes(["heading"]).build());
-                column.append(&lead("In UUOB there, open Apps, choose Connect with a code, and type the code here."));
                 column.append(&code_form(self));
                 column.append(&error());
             }
             Step::Waiting => {
                 column.append(&title("Allow it in UUOB"));
-                column.append(&lead(&format!("UUOB is asking whether {name} may keep its {noun} in your network.")));
                 column.append(&looking("Waiting for your answer…"));
                 let cancel = wide("Cancel", false);
                 cancel.connect_clicked({
@@ -536,7 +540,6 @@ impl Gate {
             }
             _ => {
                 column.append(&title(&format!("Connect {name}")));
-                column.append(&lead(&format!("{name} has no server of its own. Your {noun} live in UUOB, on your own devices, end-to-end encrypted.")));
                 let found = gtk::Box::builder().spacing(8).halign(gtk::Align::Center).margin_top(22).build();
                 found.append(&gtk::Box::builder().css_classes(["uuob-dot"]).valign(gtk::Align::Center).build());
                 found.append(&gtk::Label::builder().label(format!("UUOB is running on {}", i.client.device().unwrap_or_else(|| "this device".into()))).css_classes(["dim-label"]).build());
@@ -550,7 +553,6 @@ impl Gate {
                 column.append(&error());
                 if i.use_code.get() {
                     column.append(&code_form(self));
-                    column.append(&gtk::Label::builder().label("In UUOB, open Apps and choose Connect with a code.").css_classes(["caption", "dim-label"]).margin_top(10).build());
                 } else {
                     let link = gtk::Button::builder().label("Use a code instead").css_classes(["btn", "ghost"]).halign(gtk::Align::Center).margin_top(18).build();
                     link.connect_clicked({
@@ -629,6 +631,35 @@ pub fn setting_row(title: &str, control: &impl IsA<gtk::Widget>) -> gtk::Widget 
     row.upcast()
 }
 
+/// A row as the event card draws them: a grey icon (or room for one), then
+/// `content`. Put rows in a box with the `icon-rows` class for the hairlines.
+pub fn icon_row(icon_name: Option<&str>, content: &impl IsA<gtk::Widget>) -> gtk::Box {
+    let row = gtk::Box::builder().spacing(12).css_classes(["icon-row"]).build();
+    // The icon by the first line (a row of notes grows downwards).
+    let slot = gtk::Box::builder().width_request(20).valign(gtk::Align::Start).margin_top(12).build();
+    if let Some(n) = icon_name {
+        slot.append(&icon(n, 19, 1.8, text2()));
+    }
+    row.append(&slot);
+    content.set_hexpand(true);
+    row.append(content);
+    row
+}
+
+/// An icon row with a title on the left and a control on the right.
+pub fn icon_setting_row(icon_name: Option<&str>, title: &str, control: &impl IsA<gtk::Widget>) -> gtk::Box {
+    let inner = gtk::Box::builder().spacing(12).build();
+    inner.append(&gtk::Label::builder().label(title).xalign(0.0).hexpand(true).css_classes(["icon-row-title"]).build());
+    control.set_valign(gtk::Align::Center);
+    inner.append(control);
+    icon_row(icon_name, &inner)
+}
+
+/// A small grey heading over a few rows ("Views").
+pub fn rows_label(text: &str) -> gtk::Label {
+    gtk::Label::builder().label(text.to_uppercase()).xalign(0.0).css_classes(["rows-label"]).build()
+}
+
 /// A row with a segmented choice.
 pub fn choice_row(title: &str, options: &[&str], selected: usize, on_select: impl Fn(usize) + 'static) -> gtk::Widget {
     setting_row(title, &segmented(options, selected, on_select))
@@ -653,17 +684,21 @@ pub fn group(title: &str, note: &str, rows: Vec<gtk::Widget>) -> Group {
     Group { title: title.into(), note: note.into(), rows }
 }
 
+/// A group in the event card's style: a small heading, then rows with a
+/// hairline between them; no card, no note (the rows say enough).
 fn group_box(g: &Group) -> gtk::Box {
-    let b = gtk::Box::builder().orientation(gtk::Orientation::Vertical).spacing(8).margin_top(28).build();
-    b.append(&gtk::Label::builder().label(g.title.to_uppercase()).xalign(0.0).margin_start(4).css_classes(["section-label"]).build());
-    let card = gtk::Box::builder().orientation(gtk::Orientation::Vertical).css_classes(["card-web", "web-rows"]).build();
-    for r in &g.rows {
-        card.append(r);
+    let b = gtk::Box::builder().orientation(gtk::Orientation::Vertical).build();
+    if !g.title.is_empty() {
+        b.append(&rows_label(&g.title));
     }
-    b.append(&card);
-    if !g.note.is_empty() {
-        b.append(&gtk::Label::builder().label(&g.note).xalign(0.0).wrap(true).margin_start(4).margin_end(4).css_classes(["caption-web"]).build());
+    let rows = gtk::Box::builder().orientation(gtk::Orientation::Vertical).css_classes(["icon-rows"]).build();
+    for (i, r) in g.rows.iter().enumerate() {
+        if i == g.rows.len() - 1 {
+            r.add_css_class("last");
+        }
+        rows.append(r);
     }
+    b.append(&rows);
     b
 }
 
@@ -685,7 +720,7 @@ pub fn settings_dialog(info: &AppInfo, client: &Client, week: bool, groups: Vec<
             });
         }
     };
-    let col = gtk::Box::builder().orientation(gtk::Orientation::Vertical).margin_top(28).margin_bottom(28).margin_start(28).margin_end(28).build();
+    let col = gtk::Box::builder().orientation(gtk::Orientation::Vertical).margin_top(22).margin_bottom(22).margin_start(22).margin_end(22).build();
     let head = gtk::Box::builder().build();
     head.append(&gtk::Label::builder().label("Settings").xalign(0.0).hexpand(true).css_classes(["web-title"]).build());
     let close = icon_btn("close", 19, "Close");
@@ -699,17 +734,16 @@ pub fn settings_dialog(info: &AppInfo, client: &Client, week: bool, groups: Vec<
     col.append(&head);
     let mut all_rows = vec![];
     let s = set.clone();
-    all_rows.push(choice_row("Time", &["14:30", "2:30 PM"], hour12(client) as usize, move |i| s(serde_json::json!({ "hour12": i == 1 }))));
+    all_rows.push(icon_setting_row(Some("clock"), "Time", &segmented(&["14:30", "2:30 PM"], hour12(client) as usize, move |i| s(serde_json::json!({ "hour12": i == 1 })))).upcast());
     if week {
         let s = set.clone();
-        all_rows.push(choice_row("Week starts", &["Monday", "Sunday"], sunday_first(client) as usize, move |i| s(serde_json::json!({ "sunday_first": i == 1 }))));
+        all_rows.push(icon_setting_row(Some("calendar"), "Week starts", &segmented(&["Monday", "Sunday"], sunday_first(client) as usize, move |i| s(serde_json::json!({ "sunday_first": i == 1 })))).upcast());
     }
-    col.append(&group_box(&group("All your apps", "Every app follows these, on all your devices.", all_rows)));
+    col.append(&group_box(&group("All your apps", "", all_rows)));
     for g in &groups {
         col.append(&group_box(g));
     }
-    let version = gtk::Label::builder().label(format!("Version {}", info.version)).css_classes(["secondary"]).build();
-    col.append(&group_box(&group("About", "Open source: github.com/UUOB", vec![setting_row(&info.name, &version)])));
+    col.append(&gtk::Label::builder().label(format!("{} {}", info.name, info.version)).margin_top(22).css_classes(["caption-web", "dim-label"]).build());
     let scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).propagate_natural_height(true).max_content_height(620).child(&col).build();
     dialog.set_child(Some(&scroll));
     dialog
@@ -792,6 +826,9 @@ pub fn icon_path(name: &str) -> &'static str {
         "place" => "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
         "video" => "M3 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 10l5-3v10l-5-3",
         "repeat" => "M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3",
+        "clock" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+        "notes" => "M5 7h14M5 12h14M5 17h9",
+        "at" => "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1",
         _ => "",
     }
 }
@@ -835,6 +872,20 @@ pub fn icon(name: &str, size: i32, stroke: f64, color: &str) -> gtk::DrawingArea
         let _ = cr.stroke();
     });
     area
+}
+
+/// Draws an icon with cairo's current colour, `size` across at (x, y): for
+/// pictures drawn by hand, like a calendar's events.
+pub fn draw_icon(cr: &gtk::cairo::Context, name: &str, x: f64, y: f64, size: f64, stroke: f64) {
+    cr.save().ok();
+    cr.translate(x, y);
+    cr.scale(size / 24.0, size / 24.0);
+    svg_path(cr, icon_path(name));
+    cr.set_line_width(stroke);
+    cr.set_line_cap(gtk::cairo::LineCap::Round);
+    cr.set_line_join(gtk::cairo::LineJoin::Round);
+    let _ = cr.stroke();
+    cr.restore().ok();
 }
 
 /// Draws SVG path data (M L H V C S Q A Z, absolute and relative) as the

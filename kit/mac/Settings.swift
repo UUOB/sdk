@@ -44,9 +44,9 @@ final class UuobSettings {
     }
 }
 
-/// Settings as the web version showed them: a sheet with groups of rows on
-/// white cards. The app's own groups (`extra`, made of `Card`s) come between
-/// the ones for all apps and About.
+/// Settings, in the event card's style: rows with an icon, a hairline
+/// between them, no boxes. The app's own rows (`extra`) come after the ones
+/// for all apps; the version is a small line at the end.
 struct SettingsSheet<Extra: View>: View {
     let app: AppInfo
     @Bindable var settings: UuobSettings
@@ -62,32 +62,28 @@ struct SettingsSheet<Extra: View>: View {
                     Spacer()
                     IconButton("close", size: 19, help: "Close") { dismiss() }.keyboardShortcut(.cancelAction)
                 }
-                Card {
-                    Trailing("Time") {
-                        Segmented([("24", "14:30"), ("12", "2:30 PM")], selected: settings.hour12 ? "12" : "24") { settings.set(["hour12": $0 == "12"]) }
+                .padding(.bottom, 4)
+                RowsLabel("All your apps")
+                IconRow("clock", last: !week) {
+                    Text("Time")
+                    Spacer(minLength: 8)
+                    Segmented([("24", "14:30"), ("12", "2:30 PM")], selected: settings.hour12 ? "12" : "24") { settings.set(["hour12": $0 == "12"]) }
+                }
+                if week {
+                    IconRow("calendar", last: true) {
+                        Text("Week starts")
+                        Spacer(minLength: 8)
+                        Segmented([("mon", "Monday"), ("sun", "Sunday")], selected: settings.sundayFirst ? "sun" : "mon") { settings.set(["sunday_first": $0 == "sun"]) }
                     }
-                    if week {
-                        Trailing("Week starts") {
-                            Segmented([("mon", "Monday"), ("sun", "Sunday")], selected: settings.sundayFirst ? "sun" : "mon") { settings.set(["sunday_first": $0 == "sun"]) }
-                        }
-                    }
-                } header: {
-                    SectionLabel("All your apps")
-                } footer: {
-                    Text("Every app follows these, on all your devices.")
                 }
                 extra()
-                Card {
-                    Trailing(app.name) { Text("Version \(app.version)").foregroundStyle(Look.text2) }
-                } header: {
-                    SectionLabel("About")
-                } footer: {
-                    Text("Open source: github.com/UUOB")
-                }
+                Text("\(app.name) \(app.version)").font(.system(size: 12)).foregroundStyle(Look.text3)
+                    .frame(maxWidth: .infinity).padding(.top, 22)
             }
-            .padding(28)
+            .padding(22)
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 440).frame(minHeight: 240, maxHeight: 620)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)
         .buttonStyle(UuobButton())

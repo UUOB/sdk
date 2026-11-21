@@ -76,6 +76,9 @@ let iconPaths: [String: String] = [
     "place": "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
     "video": "M3 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 10l5-3v10l-5-3",
     "repeat": "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3",
+    "clock": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+    "notes": "M5 7h14M5 12h14M5 17h9",
+    "at": "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1",
 ]
 
 /// One of the icons, as a shape on the 24 point grid.
@@ -420,6 +423,60 @@ extension Card where Footer == EmptyView {
     }
 }
 
+
+// MARK: - Rows like the event card's
+
+/// A row as the event card draws them (and so the edit window and Settings):
+/// a grey icon, then the content, at least 44 high, a hairline under it
+/// unless it is the last. No boxes: the lines are enough.
+struct IconRow<Content: View>: View {
+    let icon: String?
+    var last = false
+    @ViewBuilder var content: Content
+    init(_ icon: String?, last: Bool = false, @ViewBuilder content: () -> Content) {
+        self.icon = icon; self.last = last; self.content = content()
+    }
+    var body: some View {
+        HStack(spacing: 12) {
+            if let icon { Ico(icon, size: 19, stroke: 1.8).foregroundStyle(Look.text2).frame(width: 20) } else { Color.clear.frame(width: 20, height: 1) }
+            content
+        }
+        .font(.system(size: 15))
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.vertical, 2)
+        .overlay(alignment: .bottom) { if !last { Rectangle().fill(Look.line).frame(height: 1) } }
+        .contentShape(Rectangle())
+    }
+}
+
+/// A small grey heading over a few rows ("Views").
+struct RowsLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text.uppercased()).font(.system(size: 12, weight: .semibold)).tracking(0.5).foregroundStyle(Look.text3)
+            .padding(.top, 18).padding(.bottom, 2)
+    }
+}
+
+/// A plain line of text that opens a menu (the card's alert line): no box.
+struct PlainMenu: View {
+    let label: String
+    let items: [(String, () -> Void)]
+    var color: Color = Look.text
+    var body: some View {
+        Menu {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, it in Button(it.0, action: it.1) }
+        } label: {
+            HStack(spacing: 5) {
+                Text(label).lineLimit(1)
+                Ico("chevron", size: 13).rotationEffect(.degrees(90)).foregroundStyle(Look.text2)
+            }
+            .foregroundStyle(color).contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+    }
+}
 
 /// `.tag`: "This device", small and blue in a pill.
 struct Tag: View {

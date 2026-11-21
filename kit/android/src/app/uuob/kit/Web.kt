@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,6 +111,8 @@ object Icons24 {
     "bell" to "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0",
     "place" to "M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
     "video" to "M3 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 10l5-3v10l-5-3",
+    "notes" to "M5 7h14M5 12h14M5 17h9",
+    "at" to "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1",
     "repeat" to "M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3",
   )
   private val parsed = HashMap<String, androidx.compose.ui.graphics.Path>()
@@ -351,3 +354,29 @@ fun WebRow(modifier: Modifier = Modifier, first: Boolean = false, content: @Comp
 
 @Composable
 fun ProvideText(color: Color, content: @Composable () -> Unit) = CompositionLocalProvider(LocalContentColor provides color, content = content)
+
+/**
+ * A row as the event card draws them (and so the edit window and Settings):
+ * a grey icon (or room for one), then the content, at least 46 high, a
+ * hairline under it unless it is the last. No boxes: the lines are enough.
+ */
+@Composable
+fun IconRow(icon: String?, modifier: Modifier = Modifier, last: Boolean = false, top: Boolean = false, content: @Composable RowScope.() -> Unit) {
+  Column(modifier) {
+    Row(
+      Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 2.dp, vertical = 6.dp),
+      verticalAlignment = if (top) Alignment.Top else Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Box(Modifier.width(20.dp).then(if (top) Modifier.padding(top = 10.dp) else Modifier)) { if (icon != null) Icon24(icon, size = 20.dp, stroke = 1.8f, tint = Tokens.text2) }
+      ProvideText(MaterialTheme.colorScheme.onSurface) { content() }
+    }
+    if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
+  }
+}
+
+/** A small grey heading over a few rows ("Views"). */
+@Composable
+fun RowsLabel(text: String, modifier: Modifier = Modifier) {
+  Text(text.uppercase(), modifier.padding(top = 18.dp, bottom = 2.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = Tokens.text3)
+}

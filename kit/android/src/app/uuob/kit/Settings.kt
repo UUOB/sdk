@@ -81,61 +81,46 @@ object UuobSettings {
 }
 
 /**
- * Settings, the same sheet in every app (ui/Settings.svelte): the choices
- * for all apps at the top, the app's own groups (`content`, made of
- * [SettingsGroup]s) below them, About last.
+ * Settings, the same sheet in every app, in the event card's style: rows
+ * with an icon and a hairline between them, no boxes. The choices for all
+ * apps come first, the app's own groups (`content`) after them, and the
+ * version is a small line at the end.
  */
 @Composable
 fun SettingsSheet(onClose: () -> Unit, week: Boolean = false, content: @Composable ColumnScope.() -> Unit = {}) {
   val app = Uuob.app
   WebSheet(onClose, padding = 22.dp) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, modifier = Modifier.weight(1f))
       IconBtn("close", onClose, size = 19.dp)
     }
     SettingsGroup("All your apps") {
-      SettingsRow("Time") {
+      SettingsRow("Time", icon = "clock", last = !week) {
         Segmented(listOf("14:30", "2:30 PM"), if (UuobSettings.hour12) 1 else 0) { UuobSettings.set(JSONObject().put("hour12", it == 1)) }
       }
       if (week) {
-        SettingsRow("Week starts", first = false) {
+        SettingsRow("Week starts", icon = "calendar", last = true) {
           Segmented(listOf("Monday", "Sunday"), if (UuobSettings.sundayFirst) 1 else 0) { UuobSettings.set(JSONObject().put("sunday_first", it == 1)) }
         }
       }
     }
     content()
-    SettingsGroup("About") {
-      SettingsRow(app.name) { Text("Version ${app.version}", fontSize = 15.sp, color = Tokens.text2) }
-    }
+    Text("${app.name} ${app.version}", fontSize = 12.sp, color = Tokens.text3, modifier = Modifier.fillMaxWidth().padding(top = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
   }
 }
 
-/** A group of rows, like iPhone Settings: a label above, a note below. */
+/** A few rows under a small grey heading (`foot` is no longer shown: the rows say enough). */
 @Composable
-fun SettingsGroup(label: String, foot: String? = null, rows: @Composable ColumnScope.() -> Unit) {
-  Text(
-    label.uppercase(),
-    style = MaterialTheme.typography.labelMedium,
-    color = Tokens.text3,
-    modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-  )
-  Surface(shape = Tokens.card, color = MaterialTheme.colorScheme.surface, border = Tokens.border) {
-    Column(Modifier.fillMaxWidth(), content = rows)
-  }
-  if (foot != null) {
-    Text(foot, fontSize = 13.sp, color = Tokens.text2, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
-  }
+fun SettingsGroup(label: String, @Suppress("UNUSED_PARAMETER") foot: String? = null, rows: @Composable ColumnScope.() -> Unit) {
+  RowsLabel(label)
+  Column(Modifier.fillMaxWidth(), content = rows)
 }
 
+/** A row of Settings: an icon (or room for one), its name, a control on the right, a hairline under it unless `last`. */
 @Composable
-fun SettingsRow(label: String, first: Boolean = true, trailing: @Composable () -> Unit) {
-  if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.line))
-  Row(
-    Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-  ) {
-    Text(label, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+fun SettingsRow(label: String, @Suppress("UNUSED_PARAMETER") first: Boolean = true, icon: String? = null, last: Boolean = false, trailing: @Composable () -> Unit) {
+  IconRow(icon, last = last) {
+    Text(label, fontSize = 15.sp, modifier = Modifier.weight(1f))
     trailing()
   }
 }
