@@ -127,11 +127,11 @@ fun SettingsRow(label: String, @Suppress("UNUSED_PARAMETER") first: Boolean = tr
 
 /** A row of choices, one of them on (`.segmented`: the chosen one raised on a grey track). */
 @Composable
-fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifier, fill: Boolean = false, onSelect: (Int) -> Unit) {
+fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifier, fill: Boolean = false, compact: Boolean = false, onSelect: (Int) -> Unit) {
   // Moves at once: the screen behind it may take a moment to follow.
   var shown by remember(selected) { mutableStateOf(selected) }
   Row(
-    modifier.clip(RoundedCornerShape(10.dp)).background(Tokens.surface2).padding(3.dp),
+    modifier.clip(RoundedCornerShape(10.dp)).background(Tokens.surface2).padding(if (compact) 2.dp else 3.dp),
     horizontalArrangement = Arrangement.spacedBy(2.dp),
   ) {
     options.forEachIndexed { i, label ->
@@ -143,10 +143,11 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
           .clip(RoundedCornerShape(8.dp))
           .background(if (on) MaterialTheme.colorScheme.surface else Color.Transparent)
           .clickable(source, null) { if (i != shown) { shown = i; onSelect(i) } }
-          .padding(horizontal = if (fill) 4.dp else 14.dp, vertical = 6.dp),
+          // `compact` (a phone's view switch): just enough room around each name.
+          .padding(horizontal = if (fill) 4.dp else if (compact) 10.dp else 14.dp, vertical = if (compact) 5.dp else 6.dp),
         contentAlignment = Alignment.Center,
       ) {
-        Text(label, fontSize = if (fill && options.size > 4) 13.sp else 14.sp, fontWeight = FontWeight.Medium, color = if (on) MaterialTheme.colorScheme.onSurface else Tokens.text2, maxLines = 1, softWrap = false)
+        Text(label, fontSize = if (compact || (fill && options.size > 4)) 13.sp else 14.sp, fontWeight = FontWeight.Medium, color = if (on) MaterialTheme.colorScheme.onSurface else Tokens.text2, maxLines = 1, softWrap = false)
       }
     }
   }
