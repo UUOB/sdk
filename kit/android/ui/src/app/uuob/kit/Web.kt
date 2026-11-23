@@ -1,5 +1,12 @@
 package app.uuob.kit
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -186,13 +193,16 @@ fun Btn(
 
 /** `.icon-btn`: a round 36 button with a grey icon. */
 @Composable
-fun IconBtn(icon: String, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 22.dp, tint: Color = Tokens.text2, description: String? = null) {
+@OptIn(ExperimentalMaterial3Api::class)
+fun IconBtn(icon: String, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 22.dp, tint: Color = Tokens.text2, description: String) {
   val source = remember { MutableInteractionSource() }
-  Box(
-    modifier.size(36.dp).clip(CircleShape).clickable(source, null, onClick = onClick),
-    contentAlignment = Alignment.Center,
-  ) { Icon24(icon, size = size, tint = tint) }
-  @Suppress("UNUSED_EXPRESSION") description
+  // What it does, on a long press or with a mouse resting on it; read out as its label.
+  TooltipBox(TooltipDefaults.rememberPlainTooltipPositionProvider(), { PlainTooltip { Text(description) } }, rememberTooltipState()) {
+    Box(
+      modifier.size(36.dp).clip(CircleShape).clickable(source, null, onClick = onClick).semantics { contentDescription = description },
+      contentAlignment = Alignment.Center,
+    ) { Icon24(icon, size = size, tint = tint) }
+  }
 }
 
 /** `.field`: grey, a hairline, 46 tall, a blue ring while it has the focus. */

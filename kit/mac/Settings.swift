@@ -82,6 +82,8 @@ struct SettingsSheet<Extra: View>: View {
             }
             .padding(22)
         }
+        // A click outside closes it, as a menu does.
+        .uuobClosesOnOutsideClick { dismiss() }
         .frame(width: sheetWidth(440)).frame(minHeight: 240, maxHeight: 620)
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)

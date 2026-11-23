@@ -76,15 +76,18 @@ class DrawerState {
  * The sidebar and the rest of the screen. On a phone (narrower than 600) the
  * sidebar is a drawer, hidden until the menu button or a swipe from the left
  * edge opens it. On a tablet it is expanded (240) or folded to a rail (64)
- * with the toggle at its bottom, remembered on this device.
+ * with the toggle at its bottom, remembered on this device. `footer` (Settings,
+ * a note) shares the toggle's line in the expanded sidebar, left of it, and
+ * ends the phone's drawer.
  */
 @Composable
 fun SidebarScaffold(
   drawer: DrawerState,
   sidebar: @Composable ColumnScope.() -> Unit,
   rail: @Composable ColumnScope.() -> Unit,
+  footer: @Composable RowScope.() -> Unit = {},
   content: @Composable () -> Unit,
-) = SidebarScaffold(drawer.open, { drawer.open = it }, sidebar, rail, content)
+) = SidebarScaffold(drawer.open, { drawer.open = it }, sidebar = sidebar, rail = rail, footer = footer, content = content)
 
 /** The same, with the app keeping whether the drawer is open (`drawerOpen`, `onDrawer`). */
 @Composable
@@ -93,6 +96,7 @@ fun SidebarScaffold(
   onDrawer: (Boolean) -> Unit,
   sidebar: @Composable ColumnScope.() -> Unit,
   rail: @Composable ColumnScope.() -> Unit,
+  footer: @Composable RowScope.() -> Unit = {},
   content: @Composable () -> Unit,
 ) {
   val prefs = LocalContext.current.getSharedPreferences("uuob.kit", 0)
@@ -110,13 +114,17 @@ fun SidebarScaffold(
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).clickable(remember { MutableInteractionSource() }, null) { onDrawer(false) })
       }
       AnimatedVisibility(drawerOpen, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
-        Column(Modifier.width(300.dp).fillMaxHeight().shadow(16.dp).background(MaterialTheme.colorScheme.surface).safeDrawingPadding().padding(horizontal = 12.dp, vertical = 16.dp), content = sidebar)
+        Column(Modifier.width(300.dp).fillMaxHeight().shadow(16.dp).background(MaterialTheme.colorScheme.surface).safeDrawingPadding().padding(horizontal = 12.dp, vertical = 16.dp)) {
+          sidebar()
+          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, content = footer)
+        }
       }
     } else {
       Row(Modifier.fillMaxSize()) {
         Column(Modifier.width(if (folded) 64.dp else 240.dp).fillMaxHeight().background(MaterialTheme.colorScheme.surface).safeDrawingPadding().padding(horizontal = if (folded) 8.dp else 12.dp, vertical = 16.dp)) {
           Column(Modifier.weight(1f), horizontalAlignment = if (folded) Alignment.CenterHorizontally else Alignment.Start, content = if (folded) rail else sidebar)
-          Row(Modifier.fillMaxWidth(), horizontalArrangement = if (folded) Arrangement.Center else Arrangement.End) {
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = if (folded) Arrangement.Center else Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            if (!folded) Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, content = footer)
             IconBtn("sidebar", { folded = !folded; prefs.edit().putBoolean("sidebar.folded", folded).apply() }, size = 18.dp, description = if (folded) "Show sidebar" else "Hide sidebar")
           }
         }
@@ -229,10 +237,23 @@ fun EditSheet(
   onCancel: () -> Unit,
   onSave: () -> Unit,
   onDelete: (() -> Unit)? = null,
+  /** Something was changed: a tap outside or Back asks before it goes. */
+  dirty: Boolean = false,
   under: @Composable RowScope.() -> Unit = {},
   content: @Composable ColumnScope.() -> Unit,
 ) {
-  WebSheet(onCancel, padding = 22.dp) {
+  var asking by remember { mutableStateOf(false) }
+  // A tap outside, or Back: gone at once unless that would lose changes.
+  WebSheet({ if (dirty) asking = true else onCancel() }, padding = 22.dp) {
+    if (asking) {
+      Text("Discard changes?", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+      Text("What you changed here isn’t saved.", fontSize = 15.sp, color = Tokens.text2, modifier = Modifier.padding(top = 6.dp))
+      Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+        Btn("Keep editing", { asking = false })
+        Btn("Discard", onCancel, kind = BtnKind.Danger)
+      }
+      return@WebSheet
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
       WebField(title, onTitle, Modifier.weight(1f), placeholder = placeholder, minHeight = 48.dp, border = false, textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold))
       IconBtn("close", onCancel, size = 19.dp, description = "Cancel")

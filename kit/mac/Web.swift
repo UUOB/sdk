@@ -683,19 +683,20 @@ struct Check: View {
 }
 
 /// A button with just an icon (`.icon-btn`).
+/// Every one says what it does on hover (`help`, with its shortcut: "Delete (⌘⌫)").
 struct IconButton: View {
     let icon: String
     var size: CGFloat = 20
-    var help = ""
+    var help: String
     let action: () -> Void
-    init(_ icon: String, size: CGFloat = 20, help: String = "", action: @escaping () -> Void) {
+    init(_ icon: String, size: CGFloat = 20, help: String, action: @escaping () -> Void) {
         self.icon = icon
         self.size = size
         self.help = help
         self.action = action
     }
     var body: some View {
-        Button(action: action) { Ico(icon, size: size) }.buttonStyle(IconButtonStyle()).help(help)
+        Button(action: action) { Ico(icon, size: size) }.buttonStyle(IconButtonStyle()).uuobHint(help)
     }
 }
 
@@ -810,5 +811,128 @@ struct Empty: View {
             Text(caption).font(.system(size: 13)).foregroundStyle(Look.text2).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60)
+    }
+}
+
+// MARK: - Hints
+
+extension View {
+    /// The short hint a pointer resting on it shows ("Info (⌘I)"), as other
+    /// programs do: a small label under the pointer after a moment, gone on
+    /// moving away or clicking. Drawn in a window of its own, so nothing in the
+    /// app's window covers it; read out by VoiceOver as the label.
+    func uuobHint(_ text: String) -> some View {
+        modifier(HintOnHover(text: text))
+    }
+}
+
+private struct HintOnHover: ViewModifier {
+    let text: String
+    func body(content: Content) -> some View {
+        content
+            .accessibilityLabel(text)
+            .onHover { inside in inside ? HintPanel.shared.arm(text) : HintPanel.shared.hide() }
+            .onDisappear { HintPanel.shared.hide() }
+    }
+}
+
+/// The one hint on screen.
+@MainActor final class HintPanel {
+    static let shared = HintPanel()
+    private var panel: NSPanel?
+    private var timer: Timer?
+    private var clicks: Any?
+
+    func arm(_ text: String) {
+        hide()
+        guard !text.isEmpty else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { _ in
+            MainActor.assumeIsolated { self.show(text) }
+        }
+    }
+
+    private func show(_ text: String) {
+        let view = NSHostingView(rootView: HintLabel(text: text))
+        view.frame.size = view.fittingSize
+        let p = panel ?? {
+            let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.hasShadow = true
+            p.ignoresMouseEvents = true
+            p.level = .popUpMenu
+            p.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
+            return p
+        }()
+        panel = p
+        p.contentView = view
+        // Under the pointer, as the system's hints; kept on the pointer's screen.
+        let mouse = NSEvent.mouseLocation
+        var origin = NSPoint(x: mouse.x - 4, y: mouse.y - 26 - view.frame.height)
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })?.visibleFrame {
+            origin.x = min(max(origin.x, screen.minX + 4), screen.maxX - view.frame.width - 4)
+            if origin.y < screen.minY + 4 { origin.y = mouse.y + 18 }
+        }
+        p.setFrame(NSRect(origin: origin, size: view.frame.size), display: true)
+        p.orderFrontRegardless()
+        clicks = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { e in
+            MainActor.assumeIsolated { self.hide() }
+            return e
+        }
+    }
+
+    func hide() {
+        timer?.invalidate()
+        timer = nil
+        panel?.orderOut(nil)
+        if let c = clicks { NSEvent.removeMonitor(c) }
+        clicks = nil
+    }
+}
+
+/// The hint's look: the system's, small text on a light or dark plate.
+private struct HintLabel: View {
+    let text: String
+    var body: some View {
+        Text(text).font(.system(size: 12)).foregroundStyle(Look.text).lineLimit(1).fixedSize()
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Look.elevated, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Look.lineStrong, lineWidth: 0.5))
+            .padding(1)
+    }
+}
+
+// MARK: - Closing on a click outside
+
+extension View {
+    /// A read-only card or sheet that a click outside closes (on the window it
+    /// covers), as a menu does. Not for an editor, whose changes that would lose.
+    func uuobClosesOnOutsideClick(_ close: @escaping () -> Void) -> some View {
+        modifier(OutsideClick(close: close))
+    }
+}
+
+private struct OutsideClick: ViewModifier {
+    let close: () -> Void
+    @State private var monitor: Any?
+    @State private var own: NSWindow?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                // This sheet's own window: the key one once it shows.
+                DispatchQueue.main.async { own = NSApp.keyWindow }
+                guard monitor == nil else { return }
+                monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { e in
+                    // A click on the window right under this sheet; not one in a sheet over it.
+                    guard let w = e.window, let own = MainActor.assumeIsolated({ self.own }), w.attachedSheet === own else { return e }
+                    MainActor.assumeIsolated { close() }
+                    return nil
+                }
+            }
+            .onDisappear {
+                if let m = monitor { NSEvent.removeMonitor(m) }
+                monitor = nil
+            }
     }
 }

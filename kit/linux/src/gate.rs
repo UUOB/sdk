@@ -408,6 +408,8 @@ pub fn settings_dialog(info: &AppInfo, client: &Client, week: bool, groups: Vec<
     col.append(&gtk::Label::builder().label(format!("{} {}", info.name, info.version)).margin_top(22).css_classes(["caption-web", "dim-label"]).build());
     let scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).propagate_natural_height(true).max_content_height(620).child(&col).build();
     dialog.set_child(Some(&scroll));
+    // A click outside closes it, as a menu does.
+    crate::close_on_outside_click(&dialog);
     dialog
 }
 

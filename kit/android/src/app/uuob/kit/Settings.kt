@@ -92,7 +92,7 @@ fun SettingsSheet(onClose: () -> Unit, week: Boolean = false, content: @Composab
   WebSheet(onClose, padding = 22.dp) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, modifier = Modifier.weight(1f))
-      IconBtn("close", onClose, size = 19.dp)
+      IconBtn("close", onClose, size = 19.dp, description = "Close")
     }
     SettingsGroup("All your apps") {
       SettingsRow("Time", icon = "clock", last = !week) {

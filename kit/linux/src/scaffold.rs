@@ -346,6 +346,8 @@ pub fn detail_sheet(title: &str, actions: &[gtk::Widget]) -> (adw::Dialog, gtk::
     col.append(&body);
     let scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).propagate_natural_height(true).max_content_height(640).child(&col).build();
     d.set_child(Some(&scroll));
+    // Read-only: a click outside closes it, as a menu does.
+    crate::close_on_outside_click(&d);
     (d, body)
 }
 

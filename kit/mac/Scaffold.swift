@@ -171,7 +171,7 @@ struct RailButton<Mark: View>: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(selected ? Look.text : Look.text2)
-        .help(help)
+        .uuobHint(help)
         .accessibilityLabel(help)
         .onHover { hover = $0 }
     }
@@ -227,7 +227,7 @@ struct PlusButton: View {
         Button(action: action) {
             Ico("plus", size: 20, stroke: 2.2).foregroundStyle(.white).frame(width: 36, height: 36).background(tint ?? Look.accent, in: Circle())
         }
-        .buttonStyle(.plain).help(help).fixedSize()
+        .buttonStyle(.plain).uuobHint(help).fixedSize()
     }
 }
 
@@ -261,6 +261,8 @@ struct DetailSheet<Actions: View, Content: View, Footer: View>: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)
+        // Read-only: a click outside closes it, as a menu does.
+        .uuobClosesOnOutsideClick(onClose)
     }
 }
 

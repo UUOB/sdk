@@ -665,3 +665,23 @@ pub fn btn(text: &str, icon_name: Option<&str>, classes: &[&str]) -> gtk::Button
 pub fn icon_btn(name: &str, size: i32, tooltip: &str) -> gtk::Button {
     gtk::Button::builder().child(&icon(name, size, 1.75, "currentColor")).tooltip_text(tooltip).css_classes(["icon-btn"]).valign(gtk::Align::Center).build()
 }
+
+
+/// A read-only sheet that a click outside it closes (on the window it covers),
+/// as a menu does. Not for an editor, whose changes that would lose.
+pub fn close_on_outside_click(d: &adw::Dialog) {
+    // The dialog covers the window while it shows (the dimmed part too); its
+    // child is the card. A press on the dialog outside the card closes it.
+    let click = gtk::GestureClick::builder().button(0).propagation_phase(gtk::PropagationPhase::Capture).build();
+    {
+        let d = d.clone();
+        click.connect_pressed(move |g, _, x, y| {
+            let Some(card) = d.child() else { return };
+            if card.compute_bounds(&d).is_some_and(|b| !b.contains_point(&gtk::graphene::Point::new(x as f32, y as f32))) {
+                g.set_state(gtk::EventSequenceState::Claimed);
+                d.close();
+            }
+        });
+    }
+    d.add_controller(click);
+}
