@@ -232,7 +232,7 @@ struct DetailSheet<Actions: View, Content: View, Footer: View>: View {
             }
             .padding(22)
         }
-        .frame(width: 460).frame(minHeight: 160, maxHeight: 640)
+        .frame(width: sheetWidth(460)).frame(minHeight: 160, maxHeight: 640)
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)
@@ -287,7 +287,7 @@ struct EditSheet<Under: View, Content: View>: View {
             }
             .padding(22)
         }
-        .frame(width: 460).frame(minHeight: 240, maxHeight: 640)
+        .frame(width: sheetWidth(460)).frame(minHeight: 240, maxHeight: 640)
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)

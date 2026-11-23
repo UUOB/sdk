@@ -237,6 +237,13 @@ pub fn command_palette(actions: &[(String, String, Rc<dyn Fn()>)]) -> adw::Dialo
             }
         })
     };
+    // Esc leaves (the search field would take it to clear itself).
+    {
+        let d = d.clone();
+        search.connect_stop_search(move |_| {
+            d.close();
+        });
+    }
     {
         let r = run.clone();
         list.connect_row_activated(move |_, row| r(row.index()));

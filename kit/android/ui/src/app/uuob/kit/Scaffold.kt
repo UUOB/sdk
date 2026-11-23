@@ -40,6 +40,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -54,6 +59,13 @@ import org.json.JSONObject
 // The frames every app is built in, taken from Calendar's (docs/design.md):
 // the sidebar (a drawer on phones), the toolbar, the detail card and the
 // editor, the empty state, list rows and the quiet tints.
+
+/**
+ * True inside a SidebarScaffold that shows its sidebar as a drawer (a phone):
+ * the page then has a menu button to open it. Measured on the whole screen,
+ * not the page, so a tablet with its sidebar showing has none.
+ */
+val LocalDrawerMode = androidx.compose.runtime.compositionLocalOf { false }
 
 /** Whether the phone's drawer is open, for the menu button that opens it. */
 class DrawerState {
@@ -92,7 +104,7 @@ fun SidebarScaffold(
         // A swipe from the left edge opens the drawer.
         var fromEdge = false
         detectHorizontalDragGestures(onDragStart = { fromEdge = it.x < 24.dp.toPx() }) { _, dx -> if (fromEdge && dx > 12) onDrawer(true) }
-      }) { content() }
+      }) { androidx.compose.runtime.CompositionLocalProvider(LocalDrawerMode provides true) { content() } }
       BackHandler(drawerOpen) { onDrawer(false) }
       AnimatedVisibility(drawerOpen, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).clickable(remember { MutableInteractionSource() }, null) { onDrawer(false) })
@@ -143,7 +155,9 @@ fun RailButton(description: String, selected: Boolean = false, onClick: () -> Un
   Box(
     Modifier.padding(vertical = 2.dp).size(40.dp).clip(RoundedCornerShape(12.dp))
       .background(if (selected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else Color.Transparent)
-      .clickable(onClickLabel = description, onClick = onClick),
+      .clickable(onClickLabel = description, onClick = onClick)
+      // Read out by TalkBack: the icon alone says nothing.
+      .semantics { contentDescription = description; role = Role.Button; this.selected = selected },
     contentAlignment = Alignment.Center,
   ) { ProvideText(if (selected) MaterialTheme.colorScheme.onSurface else Tokens.text2) { mark() } }
 }
@@ -156,7 +170,11 @@ fun RailIcon(icon: String, description: String, selected: Boolean = false, onCli
 /** The round blue + (New event, New task, Add photos). */
 @Composable
 fun PlusButton(onClick: () -> Unit, description: String = "New") {
-  Box(Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(onClickLabel = description, onClick = onClick), contentAlignment = Alignment.Center) {
+  Box(
+    Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).clickable(onClickLabel = description, onClick = onClick)
+      .semantics { contentDescription = description; role = Role.Button },
+    contentAlignment = Alignment.Center,
+  ) {
     Icon24("plus", size = 20.dp, stroke = 2.2f, tint = Color.White)
   }
 }
@@ -171,13 +189,15 @@ fun Toolbar(
   compact: Boolean = false,
   menu: (() -> Unit)? = null,
   add: (() -> Unit)? = null,
+  /** What the + adds, for TalkBack ("New task", "Add photos"). */
+  addDescription: String = "New",
   controls: @Composable RowScope.() -> Unit = {},
 ) {
   Row(Modifier.fillMaxWidth().padding(bottom = if (compact) 12.dp else 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     if (menu != null) IconBtn("menu", menu, description = "Menu")
     Text(title, Modifier.weight(1f), fontSize = if (compact) 28.sp else 34.sp, letterSpacing = (-0.8).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     controls()
-    if (add != null) PlusButton(add)
+    if (add != null) PlusButton(add, addDescription)
   }
 }
 

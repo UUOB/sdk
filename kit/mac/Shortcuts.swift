@@ -6,6 +6,7 @@
 // An app passes what each does (nil leaves it out) and its own extras, e.g.
 //   .commands { UuobCommands(settings: { model.settingsOpen = true }, new: { … }, extra: [("Today", "t", []) …]) }
 
+import AppKit
 import SwiftUI
 
 /// One shortcut for the menu and the list: its name, key and modifiers, what it does.
@@ -94,7 +95,9 @@ struct UuobCommands: Commands {
         out.append(("Toggle sidebar", "⌃⌘S", { NotificationCenter.default.post(name: .uuobToggleSidebar, object: nil) }))
         if let refresh { out.append(("Refresh", "⌘R", refresh)) }
         out.append(("Keyboard shortcuts", "⌘?", { NotificationCenter.default.post(name: .uuobShowShortcuts, object: nil) }))
-        return out
+        // One row per name: an app's own "Settings" page and the shared ⌘, are the same thing to read.
+        var seen = Set<String>()
+        return out.filter { seen.insert($0.0.lowercased()).inserted }
     }
 
     /// Every shortcut, for the list.
@@ -107,7 +110,8 @@ struct UuobCommands: Commands {
         if refresh != nil { rows.append(("Refresh", "⌘R")) }
         rows += extra.map { ($0.title, $0.label) }
         rows += [("Save", "⌘↩"), ("Close or cancel", "Esc"), ("Keyboard shortcuts", "⌘? or ?")]
-        return rows
+        var seen = Set<String>()
+        return rows.filter { seen.insert($0.0.lowercased()).inserted }
     }
 }
 
@@ -194,7 +198,7 @@ struct CommandPalette: View {
             }
             .frame(maxHeight: 340)
         }
-        .frame(width: 520)
+        .frame(width: sheetWidth(520))
         .background(Look.elevated)
         .foregroundStyle(Look.text)
         .onAppear { typing = true }
@@ -225,14 +229,39 @@ private struct KeysHost: ViewModifier {
     let commands: UuobCommands
     @State private var list = false
     @State private var palette = false
+    @State private var monitor: Any?
     func body(content: Content) -> some View {
         content
-            .onKeyPress("c") { if let n = commands.new { n(); return .handled }; return .ignored }
-            .onKeyPress("/") { if let f = commands.find { f(); return .handled }; return .ignored }
-            .onKeyPress("?") { list = true; return .handled }
+            // The window's own keys, before any view: SwiftUI's onKeyPress only
+            // reaches a view that has the keyboard focus, which a page rarely has.
+            .onAppear {
+                guard monitor == nil else { return }
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+                    letter(e) ? nil : e
+                }
+            }
+            .onDisappear {
+                if let m = monitor { NSEvent.removeMonitor(m) }
+                monitor = nil
+            }
             .onReceive(NotificationCenter.default.publisher(for: .uuobShowShortcuts)) { _ in list = true }
             .onReceive(NotificationCenter.default.publisher(for: .uuobShowPalette)) { _ in palette = true }
             .sheet(isPresented: $list) { ShortcutsSheet(rows: commands.all) { list = false } }
             .sheet(isPresented: $palette) { CommandPalette(actions: commands.actions) { palette = false } }
+    }
+
+    /// C new, / find, ? the list: only with no modifier, in the main window
+    /// (not a sheet), and where no text field is taking the typing.
+    private func letter(_ e: NSEvent) -> Bool {
+        guard e.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+              let w = e.window, w.sheetParent == nil, w.attachedSheet == nil, !list, !palette,
+              !(w.firstResponder is NSText) else { return false }
+        switch e.charactersIgnoringModifiers {
+        case "c": if let n = commands.new { n(); return true }
+        case "/": if let f = commands.find { f(); return true }
+        case "?": list = true; return true
+        default: break
+        }
+        return false
     }
 }

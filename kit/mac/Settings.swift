@@ -82,7 +82,7 @@ struct SettingsSheet<Extra: View>: View {
             }
             .padding(22)
         }
-        .frame(width: 440).frame(minHeight: 240, maxHeight: 620)
+        .frame(width: sheetWidth(440)).frame(minHeight: 240, maxHeight: 620)
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)

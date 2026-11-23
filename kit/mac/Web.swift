@@ -212,6 +212,13 @@ private func arc(_ path: inout Path, from a: CGPoint, to b: CGPoint, radius: CGF
 /// `quiet`: grey text, no fill (Settings at the foot of a sidebar).
 enum Kind { case plain, primary, danger, ghost, quiet }
 
+/// A sheet's width: `wanted`, but never wider than the window it covers
+/// (less a margin), so a small window keeps its sheets inside it.
+@MainActor func sheetWidth(_ wanted: CGFloat) -> CGFloat {
+    guard let w = NSApp.mainWindow?.frame.width ?? NSApp.windows.first(where: { $0.isVisible })?.frame.width else { return wanted }
+    return max(300, min(wanted, w - 24))
+}
+
 /// `.btn`: a pill, 40 points high (`.lg`: 50), grey, blue, red or just blue text.
 /// A destructive button turns red by itself.
 struct UuobButton: ButtonStyle {
@@ -752,7 +759,7 @@ struct SheetFrame<Content: View, Buttons: View>: View {
             .padding(.top, 8)
         }
         .padding(28)
-        .frame(width: 460)
+        .frame(width: sheetWidth(460))
         .background(Look.elevated)
         .foregroundStyle(Look.text)
         .buttonStyle(UuobButton(large: true))
