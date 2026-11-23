@@ -24,6 +24,13 @@ pub struct Shortcuts {
     pub extra: Vec<(String, String, Rc<dyn Fn()>)>,
 }
 
+/// One row per name, the first kept: an app's own "Settings" page and the
+/// shared Ctrl+, are the same thing to read.
+fn first_by_name<T>(items: Vec<T>, name: impl Fn(&T) -> &String) -> Vec<T> {
+    let mut seen = std::collections::HashSet::new();
+    items.into_iter().filter(|x| seen.insert(name(x).to_lowercase())).collect()
+}
+
 impl Shortcuts {
     /// Every shortcut as (name, keys), for the list.
     pub fn rows(&self) -> Vec<(String, String)> {
@@ -49,7 +56,7 @@ impl Shortcuts {
         rows.push(("Save".into(), "Ctrl+Enter".into()));
         rows.push(("Close or cancel".into(), "Esc".into()));
         rows.push(("Keyboard shortcuts".into(), "Ctrl+? or ?".into()));
-        rows
+        first_by_name(rows, |r| &r.0)
     }
 
     /// Every action with its keys, for the palette.
@@ -73,7 +80,7 @@ impl Shortcuts {
         if let Some(f) = &self.refresh {
             out.push(("Refresh".into(), "Ctrl+R".into(), f.clone()));
         }
-        out
+        first_by_name(out, |a| &a.0)
     }
 
     /// Puts them on the window: each as a window action with its accelerator.

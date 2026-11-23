@@ -2,7 +2,8 @@
 
 Calendar, Tasks and Photos after moving onto the kit (`docs/design.md`),
 looked at on each platform, size and theme. UUOB itself is inspected by its
-own session; the kit findings from its inspection are fixed here too.
+own session, in [inspection-2026-11-23-uuob.md](inspection-2026-11-23-uuob.md); the kit
+findings from it are fixed here too.
 
 | | Linux | Android phone | Android tablet | Mac |
 |---|---|---|---|---|
@@ -27,8 +28,8 @@ was seen on screen, including the keys and the command palette.
 | Android, Photos | The title sat lower than in the other apps, and the toolbar had a double gap under it | Same top and gap as Tasks |
 | Android, Tasks | The time in the editor sat at the far right, and the colour dots wrapped to a second line | At the start, like the date; one line of dots |
 | Mac, kit | A stretched segmented control kept 14-point margins, so "People" became "Pe…" in UUOB | 6-point margins when stretched |
-| Mac, kit | C, / and ? did nothing: the page they listened on never had the keyboard focus (found by UUOB's screenshots on GitHub) | They're read from the window's key events, only with no modifier, outside sheets and text fields. Compiles; not yet seen working |
-| Mac, kit | The palette listed Settings twice when an app also had a Settings page | One row per name |
+| Mac, kit | C, / and ? did nothing: the page they listened on never had the keyboard focus (found by UUOB's screenshots on GitHub) | They're read from the window's key events, only with no modifier, outside sheets and text fields. Seen working in UUOB on GitHub's Mac runner |
+| Mac, Linux, Android: kit | The palette and the shortcut list showed Settings twice when an app also had a Settings page | One row per name |
 | Mac, kit | In a 380-point window the sheets (460) and the palette (520) stuck out past the window | Never wider than the window less 24 |
 | Android, kit | TalkBack read nothing for the + and the rail's icons | They're read as buttons with their names ("Add photos", "New event", a list's name) |
 | Android | Photos' title was larger than Tasks' and Calendar's at the same width, and Calendar's sat a little lower | The same size and top in all three |

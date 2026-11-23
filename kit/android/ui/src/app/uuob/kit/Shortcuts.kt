@@ -53,7 +53,7 @@ class Shortcuts(
     extra.forEach { add(it.title to it.label) }
     add("Close or cancel" to "Esc")
     add("Keyboard shortcuts" to "Ctrl+/ or ?")
-  }
+  }.distinctBy { it.first.lowercase() }
 
   /** Every action with its keys, for the palette. */
   fun actions(): List<Triple<String, String, () -> Unit>> = buildList {
@@ -63,7 +63,7 @@ class Shortcuts(
     settings?.let { add(Triple("Settings", "Ctrl+,", it)) }
     toggleSidebar?.let { add(Triple("Toggle sidebar", "Ctrl+Alt+S", it)) }
     refresh?.let { add(Triple("Refresh", "Ctrl+R", it)) }
-  }
+  }.distinctBy { it.first.lowercase() }
 }
 
 /** Answers the shortcuts anywhere inside, and shows their list with Ctrl+/. */
