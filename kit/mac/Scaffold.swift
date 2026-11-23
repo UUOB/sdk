@@ -41,6 +41,8 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View>: View {
                     Color.black.opacity(0.25).ignoresSafeArea().onTapGesture { withAnimation(.easeOut(duration: 0.2)) { peek = false } }
                     column(expanded: true).shadow(color: .black.opacity(0.25), radius: 18)
                         .transition(.move(edge: .leading))
+                        // A row that goes somewhere closes it (`uuobClosePeek`).
+                        .environment(\.uuobClosePeek) { withAnimation(.easeOut(duration: 0.2)) { peek = false } }
                 }
             }
             .onChange(of: narrow) { if !narrow { peek = false } }
@@ -70,6 +72,28 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View>: View {
         .frame(maxHeight: .infinity)
         .background(Look.rail)
     }
+}
+
+/// Closes the sidebar shown over a narrow window; nothing elsewhere. A
+/// sidebar row that goes to another place calls it after going there.
+private struct ClosePeek: EnvironmentKey { static let defaultValue: () -> Void = {} }
+/// The colour of what a page shows (a list): its +, Save, ticks and blue
+/// text take it instead of the accent (`.uuobTint(_:)`).
+private struct PageTint: EnvironmentKey { static let defaultValue: Color? = nil }
+extension EnvironmentValues {
+    var uuobClosePeek: () -> Void {
+        get { self[ClosePeek.self] }
+        set { self[ClosePeek.self] = newValue }
+    }
+    var uuobTint: Color? {
+        get { self[PageTint.self] }
+        set { self[PageTint.self] = newValue }
+    }
+}
+
+extension View {
+    /// Gives this page (or sheet) the colour of what it shows; nil is the accent.
+    func uuobTint(_ color: Color?) -> some View { environment(\.uuobTint, color) }
 }
 
 /// A row of the expanded sidebar: an icon, a colour dot or a check, the name,
@@ -173,9 +197,10 @@ func titleText(_ main: String, _ grey: String = "") -> Text {
 struct PlusButton: View {
     var help = "New"
     let action: () -> Void
+    @Environment(\.uuobTint) private var tint
     var body: some View {
         Button(action: action) {
-            Ico("plus", size: 20, stroke: 2.2).foregroundStyle(.white).frame(width: 36, height: 36).background(Look.accent, in: Circle())
+            Ico("plus", size: 20, stroke: 2.2).foregroundStyle(.white).frame(width: 36, height: 36).background(tint ?? Look.accent, in: Circle())
         }
         .buttonStyle(.plain).help(help).fixedSize()
     }

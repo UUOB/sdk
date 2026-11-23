@@ -51,6 +51,7 @@ entry.sheet-title-edit { font-size: 22px; font-weight: 600; background: none; bo
 pub struct SidebarScaffold {
     root: gtk::Overlay,
     toggle: Rc<dyn Fn()>,
+    close: Rc<dyn Fn()>,
 }
 
 impl SidebarScaffold {
@@ -158,8 +159,17 @@ impl SidebarScaffold {
                 glib::ControlFlow::Continue
             });
         }
+        let close: Rc<dyn Fn()> = {
+            let (peek, apply) = (peek.clone(), apply.clone());
+            Rc::new(move || {
+                if peek.get() {
+                    peek.set(false);
+                    apply();
+                }
+            })
+        };
         apply();
-        SidebarScaffold { root, toggle }
+        SidebarScaffold { root, toggle, close }
     }
 
     pub fn widget(&self) -> gtk::Widget {
@@ -174,6 +184,24 @@ impl SidebarScaffold {
     /// The same, for a shortcut or a button elsewhere.
     pub fn toggler(&self) -> Rc<dyn Fn()> {
         self.toggle.clone()
+    }
+
+    /// Closes the sidebar shown over the content in a narrow window, e.g.
+    /// after a row there was picked; nothing otherwise.
+    pub fn closer(&self) -> Rc<dyn Fn()> {
+        self.close.clone()
+    }
+}
+
+/// Gives a page the colour of what it shows (a list, a calendar): its +, its
+/// Save and Add, and anything with the `uuob-tint-fg` class take that colour
+/// instead of the blue accent. None (or "blue") is the accent again.
+pub fn set_tint(page: &impl IsA<gtk::Widget>, color: Option<&str>) {
+    for c in crate::COLORS {
+        page.remove_css_class(&format!("uuob-tint-{c}"));
+    }
+    if let Some(c) = color.filter(|c| crate::COLORS.contains(c)) {
+        page.add_css_class(&format!("uuob-tint-{c}"));
     }
 }
 
@@ -368,6 +396,9 @@ pub fn empty_state(icon_name: &str, headline: &str, color: &str, action: Option<
     i.set_hexpand(true);
     i.set_vexpand(true);
     tile.append(&i);
+    // An explicit no, so the icon's expand doesn't stretch the tile (or the page).
+    tile.set_hexpand(false);
+    tile.set_vexpand(false);
     b.append(&tile);
     b.append(&gtk::Label::builder().label(headline).css_classes(["empty-headline"]).build());
     if let Some(a) = action {

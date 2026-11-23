@@ -59,7 +59,7 @@ model. The kit in `kit/` builds these pieces, so an app rarely needs its own:
 
 - **Neutrals:** light and dark greys from `Look` / `Tokens` (`bg`, `elevated`, `surface2`, `rail`, `line`, `text2`, `text3`), and one blue accent. Text always follows light and dark.
 - **The eight calendar colours** (blue, red, orange, yellow, green, teal, purple, pink) are for things the user names: calendars, lists, apps.
-- **The colour a list or calendar gives:** it tints everything on its page, including the +, ticks and field edges (Tasks).
+- **The colour a list or calendar gives:** it tints everything on its page and its sheets, including the +, ticks, Save and field edges (Tasks). The kit does it: `.uuobTint(color)` on the Mac, `set_tint(widget, color)` on Linux, `Accent(color)` on Android.
 - **Item tints**, quiet shades of the item's colour (`tint(kind)`):
 
   | Kind | Fill | Edge | Whole item |
@@ -79,7 +79,7 @@ Every app with more than one place has one: Calendar's calendars, Tasks' lists, 
 
 - **Expanded:** 240 wide, icons or colour dots with names, small grey section labels.
 - **Rail:** 64 wide, icons only in 40 tiles, names as tooltips. It shows by itself below 600 wide, or when folded with the toggle at the bottom of the sidebar (⌃⌘S). The choice is remembered on that device.
-- **In a narrow window:** the toggle opens the expanded sidebar over the content.
+- **In a narrow window:** the toggle opens the expanded sidebar over the content. A row that goes to another place closes it again (`uuobClosePeek` on the Mac, `closer()` on Linux); a row that only switches something on or off (a calendar) leaves it open.
 - **Phones:** a drawer, hidden until the menu button in the toolbar or a swipe from the left edge. It looks like the expanded sidebar. UUOB keeps its three bottom tabs instead.
 
 ## Sheets
@@ -122,6 +122,7 @@ Computers (⌘ on the Mac, Ctrl on Linux), and Android with a keyboard:
 | Pages or views | ⌘1–4 | Ctrl+1–4 |
 
 - **Calendar:** ← → previous and next and T today, where no field is typing; ⌘← ⌘→ ⌘T in the menu (Alt+← Alt+→ Ctrl+T on Linux).
-- **Photos:** ← → previous and next, Space opens, ⌘S save, ⌘C copy, ⌘I info, ⌫ delete.
+- **Tasks:** ⌘1–4 Today, Upcoming, All, Completed; ⇧⌘N new list; ⌘E edits the task whose card is open.
+- **Photos:** ⌘1–3 Photos, Videos, Recently deleted; in the viewer ← → previous and next, Space or Esc closes, ⌘S save, ⌘C copy, ⌘I info, ⌫ delete.
 
 On the Mac they are in the menu bar (Settings in the app menu). On Linux they are window actions with accelerators, and a list. On Android they work with a hardware keyboard, and Ctrl+/ lists them.

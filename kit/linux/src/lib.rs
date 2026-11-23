@@ -92,6 +92,8 @@ pub fn style() {
         // The palette's colour, light or dark as the theme is (see LIGHT and DARK).
         let _ = rgb;
         colors.push_str(&format!(".uuob-c-{name} {{ background: @uuob_{name}; color: white; }} .uuob-fg-{name} {{ color: @uuob_{name}; }}\n"));
+        // A page tinted with `set_tint`.
+        colors.push_str(&format!(".uuob-tint-{name} button.plus-btn, .uuob-tint-{name} button.btn.primary {{ background: @uuob_{name}; }} .uuob-tint-{name} .uuob-tint-fg {{ color: @uuob_{name}; }}\n"));
     }
     base.load_from_string(&format!("{}{colors}{}{}", css_text(), WEB_CSS, scaffold::CSS));
     gtk::style_context_add_provider_for_display(&display, &base, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);

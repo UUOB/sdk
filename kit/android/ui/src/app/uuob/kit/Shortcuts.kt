@@ -40,7 +40,7 @@ class Shortcuts(
   val refresh: (() -> Unit)? = null,
   val extra: List<Extra> = emptyList(),
 ) {
-  class Extra(val title: String, val label: String, val key: Key, val ctrl: Boolean, val action: () -> Unit)
+  class Extra(val title: String, val label: String, val key: Key, val ctrl: Boolean, val shift: Boolean = false, val action: () -> Unit)
 
   /** Every shortcut as (name, keys), for the list. */
   fun rows(): List<Pair<String, String>> = buildList {
@@ -88,12 +88,12 @@ fun ShortcutsHost(shortcuts: Shortcuts, content: @Composable () -> Unit) {
     val hit: (() -> Unit)? = when {
       ctrl && e.key == Key.K -> ({ paletteShown = true })
       ctrl && e.key == Key.Comma -> shortcuts.settings
-      ctrl && e.key == Key.N -> shortcuts.new?.second
+      ctrl && !e.isShiftPressed && e.key == Key.N -> shortcuts.new?.second
       ctrl && e.key == Key.F -> shortcuts.find
       ctrl && e.isAltPressedCompat() && e.key == Key.S -> shortcuts.toggleSidebar
       ctrl && e.key == Key.R -> shortcuts.refresh
       ctrl && (e.key == Key.Slash || (e.isShiftPressed && e.key == Key.Slash)) -> ({ listShown = true })
-      else -> shortcuts.extra.firstOrNull { it.key == e.key && it.ctrl == ctrl }?.action
+      else -> shortcuts.extra.firstOrNull { it.key == e.key && it.ctrl == ctrl && it.shift == e.isShiftPressed }?.action
     }
     hit?.invoke()
     hit != null

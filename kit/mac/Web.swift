@@ -227,13 +227,16 @@ struct UuobButton: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     /// Buttons side by side at the bottom of a sheet share its width (`.actions`).
     @Environment(\.fillButtons) private var fill
+    /// A list's colour, on its page and sheets.
+    @Environment(\.uuobTint) private var tint
     func makeBody(configuration: Configuration) -> some View {
         let kind = configuration.role == .destructive && self.kind == .plain ? .danger : self.kind
+        let accent = tint ?? Look.accent
         let (bg, fg): (Color, Color) = switch kind {
         case .plain: (Look.surface2, Look.text)
-        case .primary: (Look.accent, .white)
+        case .primary: (accent, .white)
         case .danger: (Look.dangerSoft, Look.danger)
-        case .ghost: (.clear, Look.accent)
+        case .ghost: (.clear, accent)
         case .quiet: (.clear, Look.text2)
         }
         return configuration.label
@@ -303,7 +306,7 @@ struct Segmented: View {
                 Button { selection = o.value } label: {
                     Text(o.label).font(.system(size: 14, weight: .medium)).lineLimit(1)
                         .foregroundStyle(on ? Look.text : Look.text2)
-                        .padding(.horizontal, 14).padding(.vertical, 5)
+                        .padding(.horizontal, stretch ? 6 : 14).padding(.vertical, 5)
                         .frame(maxWidth: stretch ? .infinity : nil)
                         .background(on ? Look.elevated : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .shadow(color: on ? .black.opacity(0.25) : .clear, radius: 1.5, y: 1)
@@ -658,11 +661,12 @@ struct Check: View {
     let on: Bool
     var ring: Color? = nil
     var size: CGFloat = 22
+    @Environment(\.uuobTint) private var tint
     var body: some View {
         ZStack {
-            Circle().strokeBorder(on ? (ring ?? Look.accent) : (ring ?? Look.text3), lineWidth: 1.75)
+            Circle().strokeBorder(on ? (ring ?? tint ?? Look.accent) : (ring ?? Look.text3), lineWidth: 1.75)
             if on {
-                Circle().fill(ring ?? Look.accent)
+                Circle().fill(ring ?? tint ?? Look.accent)
                 Ico("check", size: size * 0.64, stroke: 3).foregroundStyle(.white)
             }
         }

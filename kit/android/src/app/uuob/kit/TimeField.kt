@@ -39,6 +39,8 @@ fun TimeField(
   placeholder: String = "",
   optional: Boolean = false,
   plain: Boolean = false,
+  /** With `plain`: the time at the start (a row with no label), not at the end. */
+  atStart: Boolean = false,
 ) {
   val hour12 = UuobSettings.hour12
   fun shown() = value?.let { friendlyTime(it, hour12) } ?: ""
@@ -83,7 +85,7 @@ fun TimeField(
     // `plain`: no box, as in a row of the edit window.
     border = !plain,
     minHeight = if (plain) 40.dp else 46.dp,
-    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, textAlign = if (plain) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start),
+    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, textAlign = if (plain && !atStart) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start),
     keyboardOptions = KeyboardOptions(keyboardType = if (hour12) KeyboardType.Text else KeyboardType.Decimal, imeAction = ImeAction.Done),
     keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
   )
