@@ -90,7 +90,12 @@ ax() {
 on run argv
   set out to ""
   tell application "System Events" to tell (first process whose unix id is ((item 1 of argv) as integer))
-    set out to out & "process: " & name & ", windows: " & (count of windows) & linefeed
+    set out to out & "process: " & name & ", windows: " & (count of windows) & ", top: " & (count of UI elements of front window) & linefeed
+    repeat with e in (UI elements of front window)
+      try
+        set out to out & "  top " & (role of e) & " | " & (name of e as text) & linefeed
+      end try
+    end repeat
     repeat with e in (entire contents of front window)
       try
         set out to out & (role of e) & " | " & (name of e as text) & " | " & (description of e as text) & linefeed
@@ -163,8 +168,12 @@ uuob_down() { kill "$uuob_pid" 2>/dev/null; wait "$uuob_pid" 2>/dev/null; }
 
 # Starts the app at the usual size; the first time, connects it (Connect, then allow the ask).
 app_up() {
-  "$exe" >>"$out/app.log" 2>&1 & app_pid=$!
-  sleep 7; deny; sleep 1
+  # Through Launch Services (`open`), as a person starts it: started bare, an
+  # app's window shows nothing inside it to accessibility.
+  open -n -a "${exe%/Contents/MacOS/*}" --stdout "$out/app.log" --stderr "$out/app.log"
+  sleep 7
+  app_pid=$(pgrep -n -f "$exe")
+  deny; sleep 1
   if click "Connect to UUOB" 2>/dev/null; then
     sleep 2
     local id
