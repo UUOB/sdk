@@ -72,6 +72,16 @@ fun SidebarScaffold(
   sidebar: @Composable ColumnScope.() -> Unit,
   rail: @Composable ColumnScope.() -> Unit,
   content: @Composable () -> Unit,
+) = SidebarScaffold(drawer.open, { drawer.open = it }, sidebar, rail, content)
+
+/** The same, with the app keeping whether the drawer is open (`drawerOpen`, `onDrawer`). */
+@Composable
+fun SidebarScaffold(
+  drawerOpen: Boolean,
+  onDrawer: (Boolean) -> Unit,
+  sidebar: @Composable ColumnScope.() -> Unit,
+  rail: @Composable ColumnScope.() -> Unit,
+  content: @Composable () -> Unit,
 ) {
   val prefs = LocalContext.current.getSharedPreferences("uuob.kit", 0)
   var folded by remember { mutableStateOf(prefs.getBoolean("sidebar.folded", false)) }
@@ -81,13 +91,13 @@ fun SidebarScaffold(
       Box(Modifier.fillMaxSize().pointerInput(Unit) {
         // A swipe from the left edge opens the drawer.
         var fromEdge = false
-        detectHorizontalDragGestures(onDragStart = { fromEdge = it.x < 24.dp.toPx() }) { _, dx -> if (fromEdge && dx > 12) drawer.open = true }
+        detectHorizontalDragGestures(onDragStart = { fromEdge = it.x < 24.dp.toPx() }) { _, dx -> if (fromEdge && dx > 12) onDrawer(true) }
       }) { content() }
-      BackHandler(drawer.open) { drawer.open = false }
-      AnimatedVisibility(drawer.open, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).clickable(remember { MutableInteractionSource() }, null) { drawer.open = false })
+      BackHandler(drawerOpen) { onDrawer(false) }
+      AnimatedVisibility(drawerOpen, enter = fadeIn(), exit = fadeOut()) {
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).clickable(remember { MutableInteractionSource() }, null) { onDrawer(false) })
       }
-      AnimatedVisibility(drawer.open, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
+      AnimatedVisibility(drawerOpen, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
         Column(Modifier.width(300.dp).fillMaxHeight().shadow(16.dp).background(MaterialTheme.colorScheme.surface).safeDrawingPadding().padding(horizontal = 12.dp, vertical = 16.dp), content = sidebar)
       }
     } else {

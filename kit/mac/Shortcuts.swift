@@ -1,6 +1,8 @@
-// The keys every app answers to, in the menu bar (docs/design.md):
-//   ⌘, Settings · ⌘N New · ⌘F Find · ⌃⌘S Toggle sidebar · ⌘R Refresh
-//   ⌘? Keyboard shortcuts · Esc / ⌘W close a sheet · ⌘↩ save · ⌘⌫ delete
+// The keys every app answers to, in the menu bar (docs/design.md), with
+// Linear's habits: ⌘K for a palette of every action, single letters where
+// no field is typing (C new, / find, ? the list).
+//   ⌘K Command palette · ⌘, Settings · ⌘N New · ⌘F Find · ⌃⌘S Toggle sidebar
+//   ⌘R Refresh · ⌘? Keyboard shortcuts · Esc / ⌘W close a sheet · ⌘↩ save
 // An app passes what each does (nil leaves it out) and its own extras, e.g.
 //   .commands { UuobCommands(settings: { model.settingsOpen = true }, new: { … }, extra: [("Today", "t", []) …]) }
 
@@ -35,9 +37,10 @@ struct Shortcut {
     }
 }
 
-/// Shows the list of shortcuts (⌘?).
+/// Shows the list of shortcuts (⌘?) or the command palette (⌘K).
 extension Notification.Name {
     static let uuobShowShortcuts = Notification.Name("uuob.showShortcuts")
+    static let uuobShowPalette = Notification.Name("uuob.showPalette")
 }
 
 /// The menu bar commands every app shares, plus its own (`extra`, in a menu named `extraMenu`).
@@ -72,22 +75,38 @@ struct UuobCommands: Commands {
                 }
             }
         }
+        CommandGroup(before: .sidebar) {
+            Button("Command Palette…") { NotificationCenter.default.post(name: .uuobShowPalette, object: nil) }.keyboardShortcut("k")
+        }
         CommandGroup(replacing: .help) {
             Button("Keyboard Shortcuts") { NotificationCenter.default.post(name: .uuobShowShortcuts, object: nil) }
                 .keyboardShortcut("/", modifiers: [.command, .shift])
         }
     }
 
+    /// Every action with its keys, for the palette.
+    var actions: [(String, String, () -> Void)] {
+        var out: [(String, String, () -> Void)] = []
+        if let new { out.append((newTitle, "⌘N  C", new)) }
+        if let find { out.append(("Find", "⌘F  /", find)) }
+        out += extra.map { ($0.title, $0.label, $0.action) }
+        if let settings { out.append(("Settings", "⌘,", settings)) }
+        out.append(("Toggle sidebar", "⌃⌘S", { NotificationCenter.default.post(name: .uuobToggleSidebar, object: nil) }))
+        if let refresh { out.append(("Refresh", "⌘R", refresh)) }
+        out.append(("Keyboard shortcuts", "⌘?", { NotificationCenter.default.post(name: .uuobShowShortcuts, object: nil) }))
+        return out
+    }
+
     /// Every shortcut, for the list.
     var all: [(String, String)] {
-        var rows: [(String, String)] = []
+        var rows: [(String, String)] = [("Command palette", "⌘K")]
         if settings != nil { rows.append(("Settings", "⌘,")) }
-        if new != nil { rows.append((newTitle, "⌘N")) }
-        if find != nil { rows.append(("Find", "⌘F")) }
+        if new != nil { rows.append((newTitle, "⌘N or C")) }
+        if find != nil { rows.append(("Find", "⌘F or /")) }
         rows.append(("Toggle sidebar", "⌃⌘S"))
         if refresh != nil { rows.append(("Refresh", "⌘R")) }
         rows += extra.map { ($0.title, $0.label) }
-        rows += [("Save", "⌘↩"), ("Close or cancel", "Esc"), ("Keyboard shortcuts", "⌘?")]
+        rows += [("Save", "⌘↩"), ("Close or cancel", "Esc"), ("Keyboard shortcuts", "⌘? or ?")]
         return rows
     }
 }
@@ -127,5 +146,93 @@ private struct ShortcutsHost: ViewModifier {
         content
             .onReceive(NotificationCenter.default.publisher(for: .uuobShowShortcuts)) { _ in shown = true }
             .sheet(isPresented: $shown) { ShortcutsSheet(rows: rows) { shown = false } }
+    }
+}
+
+/// Linear's command palette: type to narrow every action down, ↑ ↓ to pick, ↩ to run.
+struct CommandPalette: View {
+    let actions: [(String, String, () -> Void)]
+    var onClose: () -> Void
+    @State private var query = ""
+    @State private var picked = 0
+    @FocusState private var typing: Bool
+
+    private var shown: [(String, String, () -> Void)] {
+        let q = query.lowercased().trimmingCharacters(in: .whitespaces)
+        return q.isEmpty ? actions : actions.filter { $0.0.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        let list = shown
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Ico("search", size: 18).foregroundStyle(Look.text2)
+                TextField("Type a command…", text: $query).textFieldStyle(.plain).font(.system(size: 17)).focused($typing)
+                    .onSubmit { run(list) }
+                    .onChange(of: query) { picked = 0 }
+            }
+            .padding(.horizontal, 18).frame(height: 54)
+            Rectangle().fill(Look.line).frame(height: 1)
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(Array(list.enumerated()), id: \.offset) { i, a in
+                        Button { picked = i; run(list) } label: {
+                            HStack {
+                                Text(a.0).font(.system(size: 15))
+                                Spacer()
+                                Text(a.1).font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(Look.text2)
+                            }
+                            .padding(.horizontal, 12).frame(height: 36)
+                            .background(i == picked ? Look.active : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if list.isEmpty { Text("Nothing matches").font(.system(size: 15)).foregroundStyle(Look.text3).padding(.vertical, 18) }
+                }
+                .padding(8)
+            }
+            .frame(maxHeight: 340)
+        }
+        .frame(width: 520)
+        .background(Look.elevated)
+        .foregroundStyle(Look.text)
+        .onAppear { typing = true }
+        .onKeyPress(.downArrow) { picked = min(picked + 1, max(0, list.count - 1)); return .handled }
+        .onKeyPress(.upArrow) { picked = max(picked - 1, 0); return .handled }
+        .onKeyPress(.escape) { onClose(); return .handled }
+    }
+
+    private func run(_ list: [(String, String, () -> Void)]) {
+        guard list.indices.contains(picked) else { return }
+        let action = list[picked].2
+        onClose()
+        // After the palette has gone, so a sheet the action opens can show.
+        DispatchQueue.main.async { action() }
+    }
+}
+
+extension View {
+    /// Everything the shared keys need on an app's main view: the shortcut
+    /// list (⌘?), the palette (⌘K), and Linear's single letters when no field
+    /// is typing: C new, / find, ? the list.
+    func uuobKeys(_ commands: UuobCommands) -> some View {
+        modifier(KeysHost(commands: commands))
+    }
+}
+
+private struct KeysHost: ViewModifier {
+    let commands: UuobCommands
+    @State private var list = false
+    @State private var palette = false
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress("c") { if let n = commands.new { n(); return .handled }; return .ignored }
+            .onKeyPress("/") { if let f = commands.find { f(); return .handled }; return .ignored }
+            .onKeyPress("?") { list = true; return .handled }
+            .onReceive(NotificationCenter.default.publisher(for: .uuobShowShortcuts)) { _ in list = true }
+            .onReceive(NotificationCenter.default.publisher(for: .uuobShowPalette)) { _ in palette = true }
+            .sheet(isPresented: $list) { ShortcutsSheet(rows: commands.all) { list = false } }
+            .sheet(isPresented: $palette) { CommandPalette(actions: commands.actions) { palette = false } }
     }
 }

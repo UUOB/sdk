@@ -61,10 +61,11 @@ impl SidebarScaffold {
         let narrow = Rc::new(Cell::new(false));
         let peek = Rc::new(Cell::new(false));
 
-        let column = gtk::Box::builder().orientation(gtk::Orientation::Vertical).css_classes(["sidebar-col", "expanded"]).build();
+        let column = gtk::Box::builder().orientation(gtk::Orientation::Vertical).hexpand(false).css_classes(["sidebar-col", "expanded"]).build();
         let stack = gtk::Stack::builder().vexpand(true).hhomogeneous(false).transition_type(gtk::StackTransitionType::Crossfade).transition_duration(120).build();
-        let side_scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).child(sidebar).build();
-        let rail_scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).child(rail).build();
+        // `External`: the sidebar is exactly 240 (the rail 64), whatever its rows would like.
+        let side_scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::External).width_request(240).child(sidebar).build();
+        let rail_scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::External).width_request(64).child(rail).build();
         stack.add_named(&side_scroll, Some("expanded"));
         stack.add_named(&rail_scroll, Some("rail"));
         column.append(&stack);
@@ -95,6 +96,7 @@ impl SidebarScaffold {
                 let expanded = !narrow.get() && !folded.get();
                 stack.set_visible_child_name(if expanded { "expanded" } else { "rail" });
                 column.set_css_classes(&["sidebar-col", if expanded { "expanded" } else { "rail" }]);
+                column.set_width_request(if expanded { 240 } else { 64 });
                 toggle_btn.set_halign(if expanded { gtk::Align::End } else { gtk::Align::Center });
                 toggle_btn.set_margin_end(if expanded { 12 } else { 0 });
                 let show_peek = narrow.get() && peek.get();
@@ -242,7 +244,7 @@ pub fn detail_sheet(title: &str, actions: &[gtk::Widget]) -> (adw::Dialog, gtk::
     let d = adw::Dialog::builder().content_width(460).build();
     let col = gtk::Box::builder().orientation(gtk::Orientation::Vertical).margin_top(22).margin_bottom(22).margin_start(22).margin_end(22).build();
     let head = gtk::Box::builder().spacing(4).build();
-    head.append(&gtk::Label::builder().label(title).xalign(0.0).hexpand(true).wrap(true).selectable(true).css_classes(["sheet-title"]).build());
+    head.append(&gtk::Label::builder().label(title).xalign(0.0).hexpand(true).wrap(true).css_classes(["sheet-title"]).build());
     for a in actions {
         head.append(a);
     }

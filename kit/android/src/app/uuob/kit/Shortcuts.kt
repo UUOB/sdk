@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +21,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,14 +44,25 @@ class Shortcuts(
 
   /** Every shortcut as (name, keys), for the list. */
   fun rows(): List<Pair<String, String>> = buildList {
+    add("Command palette" to "Ctrl+K")
     if (settings != null) add("Settings" to "Ctrl+,")
-    new?.let { add(it.first to "Ctrl+N") }
-    if (find != null) add("Find" to "Ctrl+F")
+    new?.let { add(it.first to "Ctrl+N or C") }
+    if (find != null) add("Find" to "Ctrl+F or /")
     if (toggleSidebar != null) add("Toggle sidebar" to "Ctrl+Alt+S")
     if (refresh != null) add("Refresh" to "Ctrl+R")
     extra.forEach { add(it.title to it.label) }
     add("Close or cancel" to "Esc")
-    add("Keyboard shortcuts" to "Ctrl+/")
+    add("Keyboard shortcuts" to "Ctrl+/ or ?")
+  }
+
+  /** Every action with its keys, for the palette. */
+  fun actions(): List<Triple<String, String, () -> Unit>> = buildList {
+    new?.let { add(Triple(it.first, "Ctrl+N  C", it.second)) }
+    find?.let { add(Triple("Find", "Ctrl+F  /", it)) }
+    extra.forEach { add(Triple(it.title, it.label, it.action)) }
+    settings?.let { add(Triple("Settings", "Ctrl+,", it)) }
+    toggleSidebar?.let { add(Triple("Toggle sidebar", "Ctrl+Alt+S", it)) }
+    refresh?.let { add(Triple("Refresh", "Ctrl+R", it)) }
   }
 }
 
@@ -55,10 +70,23 @@ class Shortcuts(
 @Composable
 fun ShortcutsHost(shortcuts: Shortcuts, content: @Composable () -> Unit) {
   var listShown by remember { mutableStateOf(false) }
-  Box(Modifier.onPreviewKeyEvent { e ->
+  var paletteShown by remember { mutableStateOf(false) }
+  // Linear's single letters, only when no field took the key (C new, / find, ? the list).
+  Box(Modifier.onKeyEvent { e ->
+    if (e.type != KeyEventType.KeyDown || e.isCtrlPressed) return@onKeyEvent false
+    val hit: (() -> Unit)? = when {
+      e.key == Key.C -> shortcuts.new?.second
+      e.key == Key.Slash && e.isShiftPressed -> ({ listShown = true })
+      e.key == Key.Slash -> shortcuts.find
+      else -> null
+    }
+    hit?.invoke()
+    hit != null
+  }.onPreviewKeyEvent { e ->
     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
     val ctrl = e.isCtrlPressed
     val hit: (() -> Unit)? = when {
+      ctrl && e.key == Key.K -> ({ paletteShown = true })
       ctrl && e.key == Key.Comma -> shortcuts.settings
       ctrl && e.key == Key.N -> shortcuts.new?.second
       ctrl && e.key == Key.F -> shortcuts.find
@@ -70,6 +98,7 @@ fun ShortcutsHost(shortcuts: Shortcuts, content: @Composable () -> Unit) {
     hit?.invoke()
     hit != null
   }) { content() }
+  if (paletteShown) CommandPalette(shortcuts.actions()) { paletteShown = false }
   if (listShown) {
     val rows = shortcuts.rows()
     DetailSheet("Keyboard shortcuts", { listShown = false }) {
@@ -84,3 +113,25 @@ fun ShortcutsHost(shortcuts: Shortcuts, content: @Composable () -> Unit) {
 }
 
 private fun androidx.compose.ui.input.key.KeyEvent.isAltPressedCompat() = (nativeKeyEvent.metaState and android.view.KeyEvent.META_ALT_ON) != 0
+
+/** Linear's command palette: type to narrow every action down, tap one (or Enter for the first) to run it. */
+@Composable
+fun CommandPalette(actions: List<Triple<String, String, () -> Unit>>, onClose: () -> Unit) {
+  var query by remember { mutableStateOf("") }
+  val shown = actions.filter { query.isBlank() || it.first.contains(query.trim(), ignoreCase = true) }
+  fun run(a: Triple<String, String, () -> Unit>) { onClose(); a.third() }
+  WebSheet(onClose, padding = 12.dp) {
+    WebField(query, { query = it }, placeholder = "Type a command…", keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
+      keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { shown.firstOrNull()?.let(::run) }))
+    shown.forEach { a ->
+      androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { run(a) }.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+      ) {
+        Text(a.first, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(a.second, fontSize = 13.sp, color = Tokens.text2)
+      }
+    }
+    if (shown.isEmpty()) Text("Nothing matches", color = Tokens.text3, modifier = Modifier.padding(16.dp))
+  }
+}

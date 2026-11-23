@@ -14,7 +14,7 @@ model. The kit in `kit/` builds these pieces, so an app rarely needs its own:
 | Empty | `EmptyState` | `empty_state` | `EmptyState` |
 | Settings | `SettingsSheet` | `settings_dialog` | `SettingsSheet` |
 | Tints | `tint(kind)` | `tint(kind)` | `tint(kind)` |
-| Shortcuts | `UuobCommands`, `shortcutsSheet` | `Shortcuts::install` | `ShortcutsHost` |
+| Shortcuts and palette | `UuobCommands`, `.uuobKeys`, `CommandPalette` | `Shortcuts::install`, `command_palette` | `ShortcutsHost`, `CommandPalette` |
 
 ## Measures
 
@@ -99,22 +99,29 @@ Every app with more than one place has one: Calendar's calendars, Tasks' lists, 
 
 ## Keyboard shortcuts
 
+Linear is the model:
+- **Every action is in a command palette** (⌘K / Ctrl+K). Type a few letters and press ↩. Each action shows its shortcut there.
+- **Single letters work wherever no field is typing:** C for new, / to find, ? for the list.
+- **Tooltips and menus name their shortcut.**
+- **Esc always leaves** a sheet, the palette or a menu.
+
 Computers (⌘ on the Mac, Ctrl on Linux), and Android with a keyboard:
 
 | What | Mac | Linux / Android |
 |---|---|---|
+| Command palette | ⌘K | Ctrl+K |
 | Settings | ⌘, | Ctrl+, |
-| New (event, task, photos, device) | ⌘N | Ctrl+N |
-| Find | ⌘F | Ctrl+F |
+| New (event, task, photos, device) | ⌘N or C | Ctrl+N or C |
+| Find | ⌘F or / | Ctrl+F or / |
 | Toggle sidebar | ⌃⌘S | Ctrl+Alt+S |
 | Refresh | ⌘R | Ctrl+R |
 | Save in an editor | ⌘↩ | Ctrl+Enter |
 | Close or cancel | Esc, ⌘W | Esc |
 | Delete what's selected | ⌘⌫ | Delete |
-| Keyboard shortcuts | ⌘? | Ctrl+? (Ctrl+/ on Android) |
+| Keyboard shortcuts | ⌘? or ? | Ctrl+? or ? (Ctrl+/ on Android) |
 | Pages or views | ⌘1–4 | Ctrl+1–4 |
 
-- **Calendar:** ← → previous and next, T today.
+- **Calendar:** ← → previous and next and T today, where no field is typing; ⌘← ⌘→ ⌘T in the menu (Alt+← Alt+→ Ctrl+T on Linux).
 - **Photos:** ← → previous and next, Space opens, ⌘S save, ⌘C copy, ⌘I info, ⌫ delete.
 
 On the Mac they are in the menu bar (Settings in the app menu). On Linux they are window actions with accelerators, and a list. On Android they work with a hardware keyboard, and Ctrl+/ lists them.
