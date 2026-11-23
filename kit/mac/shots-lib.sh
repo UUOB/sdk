@@ -35,13 +35,13 @@ EOF
 # or text inside is the text (with ~ first: contains it).
 click() {
   local r
-  r=$(osascript - "$name" "$1" <<'EOF' 2>>"$out/clicks.txt"
+  r=$(osascript - "$app_pid" "$1" <<'EOF' 2>>"$out/clicks.txt"
 on run argv
-  set pname to item 1 of argv
+  set pid to (item 1 of argv) as integer
   set t to item 2 of argv
   set part to t starts with "~"
   if part then set t to text 2 thru -1 of t
-  tell application "System Events" to tell process pname
+  tell application "System Events" to tell (first process whose unix id is pid)
     set frontmost to true
     repeat with e in (entire contents of front window)
       try
@@ -81,7 +81,25 @@ EOF
   )
   sleep 1.8
   echo "$mode $1 -> $r" >> "$out/clicks.txt"
-  [ "$r" = ok ] || { echo "  no button: $1"; return 1; }
+  [ "$r" = ok ] || { echo "  no button: $1"; [ -s "$out/ax.txt" ] || ax > "$out/ax.txt"; return 1; }
+}
+
+# What the app shows to accessibility (role, name, description of each element), to see why a click missed.
+ax() {
+  osascript - "$app_pid" <<'EOF' 2>&1
+on run argv
+  set out to ""
+  tell application "System Events" to tell (first process whose unix id is ((item 1 of argv) as integer))
+    set out to out & "process: " & name & ", windows: " & (count of windows) & linefeed
+    repeat with e in (entire contents of front window)
+      try
+        set out to out & (role of e) & " | " & (name of e as text) & " | " & (description of e as text) & linefeed
+      end try
+    end repeat
+  end tell
+  return out
+end run
+EOF
 }
 
 # Moves the pointer to x,y on the screen (for a hover hint), or right-clicks
@@ -107,9 +125,9 @@ EOF
 
 # The centre of the app's first button with this name or description, as "x y".
 centre() {
-  osascript - "$name" "$1" <<'EOF' 2>/dev/null
+  osascript - "$app_pid" "$1" <<'EOF' 2>/dev/null
 on run argv
-  tell application "System Events" to tell process (item 1 of argv)
+  tell application "System Events" to tell (first process whose unix id is ((item 1 of argv) as integer))
     repeat with e in (entire contents of front window)
       try
         if role of e is in {"AXButton", "AXMenuButton"} and ((name of e is (item 2 of argv)) or (description of e is (item 2 of argv))) then
@@ -132,6 +150,9 @@ hover() {
   pointer $at; sleep 1
 }
 
+# A System Events command for the app's process (found by its pid).
+win() { se "tell (first process whose unix id is $app_pid) to $1"; }
+
 # UUOB running with the demo data, for the app to connect to.
 uuob_up() {
   UUOB_DATA_DIR="$DATA" "$UUOB" run --name "Demo Mac" >"$out/uuob.log" 2>&1 &
@@ -151,8 +172,8 @@ app_up() {
     [ -n "$id" ] && UUOB_DATA_DIR="$DATA" "$UUOB" allow "$id" >/dev/null
     sleep 5
   fi
-  se "tell process \"$name\" to set position of front window to {12, 31}"
-  se "tell process \"$name\" to set size of front window to {${1:-1100}, ${2:-720}}"
+  win "set position of front window to {12, 31}"
+  win "set size of front window to {${1:-1000}, ${2:-680}}"
   sleep 1.5
 }
 app_down() { kill "$app_pid" 2>/dev/null; wait "$app_pid" 2>/dev/null; sleep 1; }
