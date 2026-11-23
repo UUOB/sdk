@@ -17,6 +17,11 @@ use relm4::adw::prelude::*;
 use relm4::{adw, gtk, gtk::glib};
 use uuob_client::{Client, Event, State};
 
+mod scaffold;
+mod shortcuts;
+pub use scaffold::*;
+pub use shortcuts::*;
+
 /// Who the app is, for its connect screen.
 #[derive(Clone)]
 pub struct AppInfo {
@@ -85,7 +90,7 @@ pub fn style() {
         let _ = rgb;
         colors.push_str(&format!(".uuob-c-{name} {{ background: @uuob_{name}; color: white; }} .uuob-fg-{name} {{ color: @uuob_{name}; }}\n"));
     }
-    base.load_from_string(&format!("{}{colors}{}", css_text(), WEB_CSS));
+    base.load_from_string(&format!("{}{colors}{}{}", css_text(), WEB_CSS, scaffold::CSS));
     gtk::style_context_add_provider_for_display(&display, &base, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
     // The palette follows light and dark mode.
     let palette = gtk::CssProvider::new();
@@ -106,6 +111,8 @@ const LIGHT: &str = "
 @define-color destructive_bg_color #ff3b30; @define-color destructive_color #ff3b30; @define-color success_color #34c759; @define-color error_color #ff3b30;
 @define-color uuob_blue #007aff; @define-color uuob_red #ff3b30; @define-color uuob_orange #ff9500; @define-color uuob_yellow #ffcc00; @define-color uuob_green #34c759; @define-color uuob_teal #30b0c7; @define-color uuob_purple #af52de; @define-color uuob_pink #ff2d55;
 @define-color uuob_surface2 #f0f0f3; @define-color uuob_line rgba(0,0,0,0.08); @define-color uuob_text2 rgba(29,29,31,0.62); @define-color uuob_text3 rgba(29,29,31,0.38);
+@define-color uuob_rail #ececf0;
+@define-color uuob_accent #007aff;
 ";
 
 const DARK: &str = "
@@ -118,6 +125,8 @@ const DARK: &str = "
 @define-color destructive_bg_color #ff453a; @define-color destructive_color #ff453a; @define-color success_color #30d158; @define-color error_color #ff453a;
 @define-color uuob_blue #0a84ff; @define-color uuob_red #ff453a; @define-color uuob_orange #ff9f0a; @define-color uuob_yellow #ffd60a; @define-color uuob_green #30d158; @define-color uuob_teal #40c8e0; @define-color uuob_purple #bf5af2; @define-color uuob_pink #ff375f;
 @define-color uuob_surface2 #26262a; @define-color uuob_line rgba(255,255,255,0.08); @define-color uuob_text2 rgba(245,245,247,0.62); @define-color uuob_text3 rgba(245,245,247,0.38);
+@define-color uuob_rail #141416;
+@define-color uuob_accent #0a84ff;
 ";
 
 /// The web version's elements (ui/tokens.css), as GTK classes.
@@ -828,6 +837,9 @@ pub fn icon_path(name: &str) -> &'static str {
         "repeat" => "M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3",
         "clock" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
         "notes" => "M5 7h14M5 12h14M5 17h9",
+        "keyboard" => "M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8",
+        "search" => "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
+        "sidebar" => "M4 5h16v14H4zM9 5v14",
         "copy" => "M9 9h10v10a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1zM5 15V5a1 1 0 0 1 1-1h9",
         "info" => "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01",
         "at" => "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1",
