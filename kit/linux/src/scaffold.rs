@@ -52,6 +52,9 @@ pub struct SidebarScaffold {
     root: gtk::Overlay,
     toggle: Rc<dyn Fn()>,
     close: Rc<dyn Fn()>,
+    footer: gtk::Box,
+    rail_footer: gtk::Box,
+    apply: Rc<dyn Fn()>,
 }
 
 impl SidebarScaffold {
@@ -71,8 +74,16 @@ impl SidebarScaffold {
         stack.add_named(&rail_scroll, Some("rail"));
         column.append(&stack);
         let toggle_btn = icon_btn("sidebar", 18, "Toggle sidebar (Ctrl+Alt+S)");
-        toggle_btn.set_margin_bottom(12);
-        column.append(&toggle_btn);
+        toggle_btn.set_valign(gtk::Align::Center);
+        // The rail's foot (`set_rail_footer`), above the toggle.
+        let rail_footer = gtk::Box::builder().orientation(gtk::Orientation::Vertical).spacing(6).halign(gtk::Align::Center).margin_bottom(6).build();
+        column.append(&rail_footer);
+        // The toggle's line: the expanded sidebar's foot (`set_footer`) on the left, with the width the toggle leaves.
+        let footer = gtk::Box::builder().hexpand(true).valign(gtk::Align::Center).build();
+        let foot = gtk::Box::builder().spacing(8).margin_bottom(12).build();
+        foot.append(&footer);
+        foot.append(&toggle_btn);
+        column.append(&foot);
 
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         row.append(&column);
@@ -88,13 +99,21 @@ impl SidebarScaffold {
         let dim = gtk::Button::builder().css_classes(["flat"]).hexpand(true).vexpand(true).build();
         dim.set_opacity(0.0);
         let peek_col = gtk::Box::builder().orientation(gtk::Orientation::Vertical).halign(gtk::Align::Start).css_classes(["sidebar-col", "expanded", "sidebar-peek"]).build();
+        // The peek's own toggle line; the app's footer moves here while the peek shows.
+        let peek_toggle = icon_btn("sidebar", 18, "Toggle sidebar (Ctrl+Alt+S)");
+        peek_toggle.set_valign(gtk::Align::Center);
+        peek_toggle.set_margin_end(12);
+        let peek_foot = gtk::Box::builder().spacing(8).margin_start(12).margin_bottom(12).build();
+        peek_foot.append(&peek_toggle);
+        peek_col.append(&peek_foot);
         root.add_overlay(&dim);
         root.add_overlay(&peek_col);
         dim.set_visible(false);
         peek_col.set_visible(false);
 
         let apply: Rc<dyn Fn()> = {
-            let (column, stack, toggle_btn, side_scroll, peek_col, dim) = (column.clone(), stack.clone(), toggle_btn.clone(), side_scroll.clone(), peek_col.clone(), dim.clone());
+            let (column, stack, toggle_btn, side_scroll, peek_col, dim, footer, foot, rail_footer, peek_foot) =
+                (column.clone(), stack.clone(), toggle_btn.clone(), side_scroll.clone(), peek_col.clone(), dim.clone(), footer.clone(), foot.clone(), rail_footer.clone(), peek_foot.clone());
             let (folded, narrow, peek) = (folded.clone(), narrow.clone(), peek.clone());
             Rc::new(move || {
                 let expanded = !narrow.get() && !folded.get();
@@ -103,17 +122,29 @@ impl SidebarScaffold {
                 column.set_width_request(if expanded { 240 } else { 64 });
                 toggle_btn.set_halign(if expanded { gtk::Align::End } else { gtk::Align::Center });
                 toggle_btn.set_margin_end(if expanded { 12 } else { 0 });
+                foot.set_margin_start(if expanded { 12 } else { 0 });
+                toggle_btn.set_hexpand(!expanded);
+                rail_footer.set_visible(!expanded && rail_footer.first_child().is_some());
                 let show_peek = narrow.get() && peek.get();
                 // The one sidebar moves into the overlay while it is shown there.
                 if show_peek && side_scroll.parent().is_some_and(|p| p != peek_col.clone().upcast::<gtk::Widget>()) {
                     stack.remove(&side_scroll);
-                    peek_col.append(&side_scroll);
+                    peek_col.prepend(&side_scroll);
                     side_scroll.set_vexpand(true);
                 } else if !show_peek && side_scroll.parent().is_some_and(|p| p == peek_col.clone().upcast::<gtk::Widget>()) {
                     peek_col.remove(&side_scroll);
                     stack.add_named(&side_scroll, Some("expanded"));
                     stack.set_visible_child_name(if expanded { "expanded" } else { "rail" });
                 }
+                // The footer goes with the sidebar: on the peek's toggle line while it shows.
+                if show_peek && footer.parent().is_some_and(|p| p == foot.clone().upcast::<gtk::Widget>()) {
+                    foot.remove(&footer);
+                    peek_foot.prepend(&footer);
+                } else if !show_peek && footer.parent().is_some_and(|p| p == peek_foot.clone().upcast::<gtk::Widget>()) {
+                    peek_foot.remove(&footer);
+                    foot.prepend(&footer);
+                }
+                footer.set_visible(expanded || show_peek);
                 peek_col.set_visible(show_peek);
                 dim.set_visible(show_peek);
             })
@@ -138,6 +169,8 @@ impl SidebarScaffold {
         {
             let t = toggle.clone();
             toggle_btn.connect_clicked(move |_| t());
+            let t = toggle.clone();
+            peek_toggle.connect_clicked(move |_| t());
             let (peek, apply) = (peek.clone(), apply.clone());
             dim.connect_clicked(move |_| {
                 peek.set(false);
@@ -169,11 +202,24 @@ impl SidebarScaffold {
             })
         };
         apply();
-        SidebarScaffold { root, toggle, close }
+        SidebarScaffold { root, toggle, close, footer, rail_footer, apply }
     }
 
     pub fn widget(&self) -> gtk::Widget {
         self.root.clone().upcast()
+    }
+
+    /// The expanded sidebar's foot, on the toggle's line and left of it, with
+    /// the width the toggle leaves: a `sidebar_row` (Settings) lines up with the
+    /// rows above, a note sits under their icons.
+    pub fn set_footer(&self, widget: &impl IsA<gtk::Widget>) {
+        put(&self.footer, widget);
+    }
+
+    /// The rail's foot, above the toggle: a `rail_button`, a small mark.
+    pub fn set_rail_footer(&self, widget: &impl IsA<gtk::Widget>) {
+        put(&self.rail_footer, widget);
+        (self.apply)();
     }
 
     /// Folds or unfolds the sidebar (the Toggle Sidebar shortcut).
@@ -191,6 +237,14 @@ impl SidebarScaffold {
     pub fn closer(&self) -> Rc<dyn Fn()> {
         self.close.clone()
     }
+}
+
+/// Replaces what `holder` shows with `widget`.
+fn put(holder: &gtk::Box, widget: &impl IsA<gtk::Widget>) {
+    while let Some(c) = holder.first_child() {
+        holder.remove(&c);
+    }
+    holder.append(widget);
 }
 
 /// Gives a page the colour of what it shows (a list, a calendar): its +, its

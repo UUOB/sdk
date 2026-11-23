@@ -17,10 +17,16 @@ extension Notification.Name {
 /// - rail: 64 points, icons only, names as tooltips (`rail`); by itself below
 ///   600 points, or when folded with the toggle at the bottom (remembered);
 /// - in a narrow window the toggle opens the expanded sidebar over the content.
-struct SidebarScaffold<Side: View, Rail: View, Content: View>: View {
+struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, RailFooter: View>: View {
     @ViewBuilder var sidebar: () -> Side
     @ViewBuilder var rail: () -> Rail
     @ViewBuilder var content: () -> Content
+    /// The expanded sidebar's foot, on the toggle's line and left of it, with
+    /// all the width the toggle leaves: a `SidebarRow` (Settings) lines up with
+    /// the rows above, a note sits under their icons.
+    @ViewBuilder var footer: () -> Footer
+    /// The rail's foot, above the toggle: a `RailButton`, a small mark.
+    @ViewBuilder var railFooter: () -> RailFooter
     /// Folded by hand (kept between launches, per device).
     @AppStorage("sidebar.folded") private var folded = false
     /// The expanded sidebar opened over the content in a narrow window.
@@ -56,21 +62,40 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View>: View {
         }
     }
 
+    private func toggleButton(expanded: Bool) -> some View {
+        IconButton("sidebar", size: 18, help: expanded ? "Hide sidebar (⌃⌘S)" : "Show sidebar (⌃⌘S)") {
+            NotificationCenter.default.post(name: .uuobToggleSidebar, object: nil)
+        }
+    }
+
     private func column(expanded: Bool) -> some View {
         VStack(spacing: 0) {
             if expanded { sidebar().frame(maxHeight: .infinity, alignment: .top) } else { rail().frame(maxHeight: .infinity, alignment: .top) }
-            HStack {
-                if expanded { Spacer() }
-                IconButton(expanded ? "sidebar" : "sidebar", size: 18, help: expanded ? "Hide sidebar (⌃⌘S)" : "Show sidebar (⌃⌘S)") {
-                    NotificationCenter.default.post(name: .uuobToggleSidebar, object: nil)
+            if expanded {
+                HStack(spacing: 8) {
+                    footer().frame(maxWidth: .infinity, alignment: .leading)
+                    toggleButton(expanded: true)
                 }
+                // At the right even when an app has no footer.
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 12).padding(.bottom, 12)
+            } else {
+                VStack(spacing: 6) {
+                    railFooter()
+                    toggleButton(expanded: false)
+                }
+                .frame(maxWidth: .infinity).padding(.bottom, 12)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, expanded ? 12 : 0).padding(.bottom, 12)
         }
         .frame(width: expanded ? 240 : 64)
         .frame(maxHeight: .infinity)
         .background(Look.rail)
+    }
+}
+
+extension SidebarScaffold where Footer == EmptyView, RailFooter == EmptyView {
+    init(@ViewBuilder sidebar: @escaping () -> Side, @ViewBuilder rail: @escaping () -> Rail, @ViewBuilder content: @escaping () -> Content) {
+        self.init(sidebar: sidebar, rail: rail, content: content, footer: { EmptyView() }, railFooter: { EmptyView() })
     }
 }
 
