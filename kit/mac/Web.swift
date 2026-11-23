@@ -78,6 +78,15 @@ let iconPaths: [String: String] = [
     "repeat": "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3",
     "clock": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
     "notes": "M5 7h14M5 12h14M5 17h9",
+    "apps": "M5 4h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM15 4h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM5 14h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM15 14h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z",
+    "person": "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 21a7.5 7.5 0 0 1 15 0",
+    "ai": "M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z",
+    "question": "M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 18h.01",
+    "server": "M5 4h14a1 1 0 0 1 1 1v5H4V5a1 1 0 0 1 1-1zM4 14h16v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM8 7h.01M8 17h.01",
+    "phone": "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
+    "laptop": "M4 6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v9H4zM2 18h20",
+    "shield": "M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6zM9 12l2 2 4-4",
+    "network": "M14.5 5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM21.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM10.8 7.2L6.2 15.8M13.2 7.2l4.6 8.6M7.5 18h9",
     "keyboard": "M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8",
     "search": "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
     "sidebar": "M4 5h16v14H4zM9 5v14",
@@ -323,7 +332,18 @@ extension Segmented {
 /// A page as UUOB's always were: a large title, a grey line about it, the
 /// content in a column no wider than 680 points. With `back`, a link above
 /// the title goes back.
+/// A narrow window (below 600 points): pages take less room at the sides and
+/// a smaller title. `SidebarScaffold` sets it; set it yourself without one.
+private struct CompactKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var uuobCompact: Bool {
+        get { self[CompactKey.self] }
+        set { self[CompactKey.self] = newValue }
+    }
+}
+
 struct Page<Content: View, Trailing: View>: View {
+    @Environment(\.uuobCompact) private var compact
     let title: String
     var lead: String = ""
     var back: (() -> Void)? = nil
@@ -338,7 +358,8 @@ struct Page<Content: View, Trailing: View>: View {
                         .buttonStyle(UuobButton(.ghost)).padding(.leading, -18).padding(.bottom, 12)
                 }
                 HStack(alignment: .firstTextBaseline) {
-                    Text(title).font(.system(size: 34, weight: .bold)).tracking(-0.85).foregroundStyle(Look.text)
+                    Text(title).font(.system(size: compact ? 26 : 34, weight: .bold)).tracking(-0.85).foregroundStyle(Look.text)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                     Spacer()
                     trailing
                 }
@@ -348,7 +369,7 @@ struct Page<Content: View, Trailing: View>: View {
                 content.padding(.top, 14)
             }
             .frame(maxWidth: 680)
-            .padding(.horizontal, 32).padding(.top, 56).padding(.bottom, 48)
+            .padding(.horizontal, compact ? 16 : 28).padding(.top, compact ? 40 : 56).padding(.bottom, 48)
             .frame(maxWidth: .infinity)
         }
         .background(Look.bg)

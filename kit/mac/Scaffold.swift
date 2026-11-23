@@ -35,6 +35,7 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View>: View {
                     column(expanded: expanded)
                     Rectangle().fill(Look.line).frame(width: 1)
                     content().frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .environment(\.uuobCompact, narrow)
                 }
                 if narrow && peek {
                     Color.black.opacity(0.25).ignoresSafeArea().onTapGesture { withAnimation(.easeOut(duration: 0.2)) { peek = false } }
@@ -342,20 +343,6 @@ struct TintKind: OptionSet {
     static let declined = TintKind(rawValue: 16)
     static let tentative = TintKind(rawValue: 32)
 
-    /// From the core's fields: repeats, join, past, answer ("no", "maybe"), solid / row (all-day).
-    init(_ e: J) {
-        var k: TintKind = []
-        if e.repeats.bool { k.insert(.repeating) }
-        if e.join.bool { k.insert(.joinable) }
-        if e.past.bool { k.insert(.past) }
-        if e.solid.bool || e.row.bool { k.insert(.allDay) }
-        switch e.answer.string {
-        case "no": k.insert(.declined)
-        case "maybe": k.insert(.tentative)
-        default: break
-        }
-        self = k
-    }
     init(rawValue: Int) { self.rawValue = rawValue }
 }
 

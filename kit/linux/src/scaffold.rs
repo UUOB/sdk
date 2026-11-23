@@ -76,8 +76,11 @@ impl SidebarScaffold {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         row.append(&column);
         row.append(&gtk::Separator::new(gtk::Orientation::Vertical));
+        // The content can be narrower than it would like, so the window can always
+        // shrink to where the rail takes over (it scrolls sideways rather than holding the window wide).
         content.as_ref().set_hexpand(true);
-        row.append(content);
+        let holder = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::External).vscrollbar_policy(gtk::PolicyType::Never).hexpand(true).child(content).build();
+        row.append(&holder);
         let root = gtk::Overlay::builder().child(&row).build();
 
         // The expanded sidebar over the content, in a narrow window.

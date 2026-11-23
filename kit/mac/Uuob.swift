@@ -103,6 +103,23 @@ final class Uuob: @unchecked Sendable {
     }
 }
 
+extension TintKind {
+    /// From the core's fields: repeats, join, past, answer ("no", "maybe"), solid / row (all-day).
+    init(_ e: J) {
+        var k: TintKind = []
+        if e.repeats.bool { k.insert(.repeating) }
+        if e.join.bool { k.insert(.joinable) }
+        if e.past.bool { k.insert(.past) }
+        if e.solid.bool || e.row.bool { k.insert(.allDay) }
+        switch e.answer.string {
+        case "no": k.insert(.declined)
+        case "maybe": k.insert(.tentative)
+        default: break
+        }
+        self = k
+    }
+}
+
 extension Error {
     /// A failed call's message, for the user.
     var userMessage: String {
