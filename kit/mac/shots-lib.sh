@@ -170,9 +170,13 @@ uuob_down() { kill "$uuob_pid" 2>/dev/null; wait "$uuob_pid" 2>/dev/null; }
 app_up() {
   # Through Launch Services (`open`), as a person starts it: started bare, an
   # app's window shows nothing inside it to accessibility.
-  open -n -a "${exe%/Contents/MacOS/*}" --stdout "$out/app.log" --stderr "$out/app.log"
+  local full; full="$(cd "$(dirname "$exe")" && pwd)/$(basename "$exe")"
+  local log="$out/app.log"; case $log in /*) ;; *) log="$PWD/$log" ;; esac
+  open -n -a "${full%/Contents/MacOS/*}" --stdout "$log" --stderr "$log"
   sleep 7
-  app_pid=$(pgrep -n -f "$exe")
+  # Its process, by the full path it runs from (the list shows full paths).
+  app_pid=$(pgrep -n -f "$full")
+  echo "app $full: pid ${app_pid:-none}" >> "$out/clicks.txt"
   deny; sleep 1
   if click "Connect to UUOB" 2>/dev/null; then
     sleep 2
