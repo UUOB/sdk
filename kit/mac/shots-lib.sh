@@ -220,6 +220,12 @@ app_up() {
   # Its process, by the full path it runs from (the list shows full paths).
   app_pid=$(pgrep -n -f "$full")
   echo "app $full: pid ${app_pid:-none}" >> "$out/clicks.txt"
+  # Ask for the full accessibility tree: SwiftUI fills in buttons' labels only
+  # when it believes an assistive app is reading it (as VoiceOver does).
+  osascript -e "tell application \"System Events\" to tell (first process whose unix id is $app_pid)" \
+    -e 'try' -e 'set value of attribute "AXEnhancedUserInterface" to true' -e 'end try' \
+    -e 'try' -e 'set value of attribute "AXManualAccessibility" to true' -e 'end try' -e 'end tell' >>"$out/clicks.txt" 2>&1
+  sleep 2
   deny; sleep 1
   if click "Connect to UUOB" 2>/dev/null; then
     sleep 2
