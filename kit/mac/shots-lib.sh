@@ -160,11 +160,55 @@ EOF
   osascript "$script" "$app_pid" "$@" 2>>"$out/clicks.txt"
 }
 
+# Where the text shows on the screen, as "x y" (macOS's own text recognition,
+# Vision): for buttons whose label accessibility doesn't give (as on GitHub's
+# runner). With several, the one nearest the middle of the screen (a sheet's).
+seen() {
+  local tool="$RUNNER_TEMP/seen"
+  [ -x "$tool" ] || {
+    cat > "$RUNNER_TEMP/seen.swift" <<'EOF'
+import AppKit
+import Vision
+let args = CommandLine.arguments
+var want = args[2].lowercased()
+let part = want.hasPrefix("~")
+if part { want.removeFirst() }
+guard let image = NSImage(contentsOfFile: args[1]), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+      let screen = NSScreen.main?.frame.size else { exit(1) }
+let request = VNRecognizeTextRequest()
+request.recognitionLevel = .accurate
+request.usesLanguageCorrection = false
+try? VNImageRequestHandler(cgImage: cg).perform([request])
+var best: (Double, CGPoint)?
+for o in request.results ?? [] {
+    guard let c = o.topCandidates(1).first else { continue }
+    let s = c.string.lowercased()
+    guard part ? s.contains(want) : (s == want || s.hasPrefix(want + " ") || s.hasSuffix(" " + want)) else { continue }
+    var box = o.boundingBox
+    // Just the words asked for, when the line holds more.
+    if let r = s.range(of: want), let b = try? c.boundingBox(for: r)?.boundingBox { box = b }
+    let p = CGPoint(x: box.midX * screen.width, y: (1 - box.midY) * screen.height)
+    let d = hypot(p.x - screen.width / 2, p.y - screen.height / 2)
+    if best == nil || d < best!.0 { best = (d, p) }
+}
+guard let (_, p) = best else { exit(1) }
+print(Int(p.x), Int(p.y))
+EOF
+    swiftc -O "$RUNNER_TEMP/seen.swift" -o "$tool" 2>>"$out/clicks.txt"
+  }
+  screencapture -x "$RUNNER_TEMP/seen.png"
+  "$tool" "$RUNNER_TEMP/seen.png" "$1"
+}
+
 click() {
   local r; r=$(ui click "$1")
+  # Not by name: by where its words show.
+  if [ "$r" != ok ]; then
+    local at; at=$(seen "$1") && [ -n "$at" ] && { pointer $at left; r="ok (seen at $at)"; }
+  fi
   sleep 1.8
   echo "$mode $1 -> ${r:-missing}" >> "$out/clicks.txt"
-  [ "$r" = ok ] || { echo "  no button: $1"; [ -s "$out/ax.txt" ] || ui dump > "$out/ax.txt"; return 1; }
+  case $r in ok*) ;; *) echo "  no button: $1"; [ -s "$out/ax.txt" ] || ui dump > "$out/ax.txt"; return 1 ;; esac
 }
 
 # Moves the pointer to x,y on the screen (for a hover hint), or right-clicks
@@ -178,6 +222,10 @@ let a = CommandLine.arguments
 let p = CGPoint(x: Double(a[1])!, y: Double(a[2])!)
 CGWarpMouseCursorPosition(p)
 CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+if a.count > 3 && a[3] == "left" {
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+}
 if a.count > 3 && a[3] == "right" {
     CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
     CGEvent(mouseEventSource: nil, mouseType: .rightMouseUp, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
