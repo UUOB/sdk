@@ -211,8 +211,9 @@ click() {
   case $r in ok*) ;; *) echo "  no button: $1"; [ -s "$out/ax.txt" ] || ui dump > "$out/ax.txt"; return 1 ;; esac
 }
 
-# Moves the pointer to x,y on the screen (for a hover hint), or right-clicks
-# there (`pointer x y right`), with a tiny Swift tool.
+# Moves the pointer to x,y on the screen (for a hover hint), and clicks there
+# (`pointer x y left|right`) or scrolls (`pointer x y scroll -10`: down), with a
+# tiny Swift tool: real mouse events, as a person's.
 pointer() {
   local tool="$RUNNER_TEMP/pointer"
   [ -x "$tool" ] || {
@@ -225,6 +226,9 @@ CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: p, m
 if a.count > 3 && a[3] == "left" {
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+}
+if a.count > 4 && a[3] == "scroll" {
+    CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: Int32(a[4])!, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
 }
 if a.count > 3 && a[3] == "right" {
     CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
