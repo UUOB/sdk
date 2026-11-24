@@ -115,7 +115,18 @@ on dump(el, depth)
       repeat depth times
         set pad to pad & "  "
       end repeat
-      set out to out & pad & line_ & linefeed & my dump(k, depth + 1)
+      set out to out & pad & line_ & linefeed
+      -- A button: every attribute it has, to see where its label went.
+      try
+        if role of k is "AXButton" then
+          repeat with at in (attributes of k)
+            try
+              set out to out & pad & "    @" & (name of at) & " = " & (value of at as text) & linefeed
+            end try
+          end repeat
+        end if
+      end try
+      set out to out & my dump(k, depth + 1)
     end repeat
   end tell
   return out
