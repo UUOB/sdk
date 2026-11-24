@@ -906,7 +906,8 @@ private struct HintLabel: View {
 
 extension View {
     /// A read-only card or sheet that a click outside closes (on the window it
-    /// covers), as a menu does. Not for an editor, whose changes that would lose.
+    /// covers), as a menu does; not while one of its fields holds typed text.
+    /// Not for an editor, whose changes that would lose.
     func uuobClosesOnOutsideClick(_ close: @escaping () -> Void) -> some View {
         modifier(OutsideClick(close: close))
     }
@@ -926,6 +927,8 @@ private struct OutsideClick: ViewModifier {
                 monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { e in
                     // A click on the window right under this sheet; not one in a sheet over it.
                     guard let w = e.window, let own = MainActor.assumeIsolated({ self.own }), w.attachedSheet === own else { return e }
+                    // Not while something is typed in one of its fields (a half-typed code stays).
+                    if let typing = own.firstResponder as? NSTextView, typing.isFieldEditor, !typing.string.isEmpty { return e }
                     MainActor.assumeIsolated { close() }
                     return nil
                 }
