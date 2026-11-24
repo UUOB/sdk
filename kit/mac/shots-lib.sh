@@ -276,7 +276,13 @@ app_up() {
   sleep 2
   deny; sleep 1
   if click "Connect to UUOB" 2>/dev/null; then
-    sleep 2
+    sleep 3
+    # Without the UUOB app on this Mac, Connect asks macOS for uuob:// (Cancel)
+    # and the app offers its code field: a code from `uuob app-code`, then Enter.
+    if click "Cancel"; then
+      local code; code=$(UUOB_DATA_DIR="$DATA" "$UUOB" app-code | head -1)
+      click "~amber-river" && { key "$code"; enter; sleep 4; }
+    fi
     local id
     id=$(UUOB_DATA_DIR="$DATA" "$UUOB" asks | grep -oE "uuob allow [a-z0-9]+" | head -1 | cut -d" " -f3)
     [ -n "$id" ] && UUOB_DATA_DIR="$DATA" "$UUOB" allow "$id" >/dev/null
