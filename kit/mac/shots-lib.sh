@@ -119,9 +119,9 @@ on dump(el, depth)
       -- A button: every attribute it has, to see where its label went.
       try
         if role of k is "AXButton" then
-          repeat with at in (attributes of k)
+          repeat with atr in (attributes of k)
             try
-              set out to out & pad & "    @" & (name of at) & " = " & (value of at as text) & linefeed
+              set out to out & pad & "    @" & (name of atr) & " = " & (value of atr as text) & linefeed
             end try
           end repeat
         end if
