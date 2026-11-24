@@ -31,80 +31,129 @@ end tell
 EOF
 }
 
-# Clicks the app's first button (or menu button) whose title, description, hint
-# or text inside is the text (with ~ first: contains it).
-click() {
-  local r
-  r=$(osascript - "$app_pid" "$1" <<'EOF' 2>>"$out/clicks.txt"
-on run argv
-  set pid to (item 1 of argv) as integer
-  set t to item 2 of argv
-  set part to t starts with "~"
-  if part then set t to text 2 thru -1 of t
-  tell application "System Events" to tell (first process whose unix id is pid)
-    set frontmost to true
-    repeat with e in (entire contents of front window)
+# The app's UI, walked level by level (macOS's "entire contents" comes back
+# empty for a SwiftUI window): `ui click|centre <text>` clicks a button (or
+# menu button, segment, check) whose title, description, hint or text inside is
+# the text (~ first: contains it), or gives its centre as "x y"; `ui dump`
+# lists what accessibility sees, to show why a click missed.
+ui() {
+  local script="$RUNNER_TEMP/ui.applescript"
+  [ -f "$script" ] || cat > "$script" <<'EOF'
+on matches(e, t, part)
+  tell application "System Events"
+    set ws to {}
+    try
+      set end of ws to name of e
+    end try
+    try
+      set end of ws to description of e
+    end try
+    try
+      set end of ws to value of attribute "AXHelp" of e
+    end try
+    try
+      set end of ws to value of e
+    end try
+  end tell
+  repeat with w in ws
+    try
+      if w is not missing value then
+        if (part and (w as text) contains t) or ((w as text) is t) then return true
+      end if
+    end try
+  end repeat
+  return false
+end matches
+
+on findButton(el, t, part, depth)
+  if depth > 30 then return missing value
+  tell application "System Events"
+    set kids to {}
+    try
+      set kids to UI elements of el
+    end try
+    repeat with k in kids
+      set r to ""
       try
-        if role of e is in {"AXButton", "AXMenuButton", "AXPopUpButton"} then
-          set ws to {}
-          try
-            set end of ws to name of e
-          end try
-          try
-            set end of ws to description of e
-          end try
-          try
-            set end of ws to value of attribute "AXHelp" of e
-          end try
-          try
-            repeat with c in (entire contents of e)
-              try
-                set end of ws to value of c
-              end try
-            end repeat
-          end try
-          repeat with w in ws
-            if w is not missing value then
-              if (part and (w as text) contains t) or ((w as text) is t) then
-                click e
-                return "ok"
-              end if
-            end if
-          end repeat
-        end if
+        set r to role of k
       end try
+      if r is in {"AXButton", "AXMenuButton", "AXPopUpButton", "AXRadioButton", "AXCheckBox"} then
+        if my matches(k, t, part) then return k
+        try
+          repeat with c in (UI elements of k)
+            if my matches(c, t, part) then return k
+          end repeat
+        end try
+      end if
+      set f to my findButton(k, t, part, depth + 1)
+      if f is not missing value then return f
     end repeat
   end tell
-  return "missing"
-end run
-EOF
-  )
-  sleep 1.8
-  echo "$mode $1 -> $r" >> "$out/clicks.txt"
-  [ "$r" = ok ] || { echo "  no button: $1"; [ -s "$out/ax.txt" ] || ax > "$out/ax.txt"; return 1; }
-}
+  return missing value
+end findButton
 
-# What the app shows to accessibility (role, name, description of each element), to see why a click missed.
-ax() {
-  osascript - "$app_pid" <<'EOF' 2>&1
-on run argv
+on dump(el, depth)
   set out to ""
-  tell application "System Events" to tell (first process whose unix id is ((item 1 of argv) as integer))
-    set out to out & "process: " & name & ", windows: " & (count of windows) & ", top: " & (count of UI elements of front window) & linefeed
-    repeat with e in (UI elements of front window)
+  if depth > 30 then return out
+  tell application "System Events"
+    set kids to {}
+    try
+      set kids to UI elements of el
+    end try
+    repeat with k in kids
+      set line_ to ""
       try
-        set out to out & "  top " & (role of e) & " | " & (name of e as text) & linefeed
+        set line_ to (role of k)
       end try
-    end repeat
-    repeat with e in (entire contents of front window)
       try
-        set out to out & (role of e) & " | " & (name of e as text) & " | " & (description of e as text) & linefeed
+        set line_ to line_ & " | " & (name of k as text)
       end try
+      try
+        set line_ to line_ & " | " & (description of k as text)
+      end try
+      set pad to ""
+      repeat depth times
+        set pad to pad & "  "
+      end repeat
+      set out to out & pad & line_ & linefeed & my dump(k, depth + 1)
     end repeat
   end tell
   return out
+end dump
+
+on run argv
+  set pid to (item 1 of argv) as integer
+  set what to item 2 of argv
+  tell application "System Events"
+    set p to first process whose unix id is pid
+    set frontmost of p to true
+    set w to front window of p
+  end tell
+  if what is "dump" then return dump(w, 0)
+  set t to item 3 of argv
+  set part to t starts with "~"
+  if part then set t to text 2 thru -1 of t
+  set b to findButton(w, t, part, 0)
+  if b is missing value then return ""
+  tell application "System Events"
+    if what is "click" then
+      click b
+      return "ok"
+    end if
+    set {x, y} to position of b
+    set {bw, bh} to size of b
+    return ((x + bw / 2) as integer as text) & " " & ((y + bh / 2) as integer as text)
+  end tell
 end run
 EOF
+  osascript "$script" "$app_pid" "$@" 2>>"$out/clicks.txt"
+}
+
+click() {
+  local r; r=$(ui click "$1")
+  sleep 1.8
+  echo "$mode $1 -> ${r:-missing}" >> "$out/clicks.txt"
+  [ "$r" = ok ] || { echo "  no button: $1"; [ -s "$out/ax.txt" ] || ui dump > "$out/ax.txt"; return 1; }
 }
 
 # Moves the pointer to x,y on the screen (for a hover hint), or right-clicks
@@ -128,25 +177,8 @@ EOF
   "$tool" "$@"; sleep 1.6
 }
 
-# The centre of the app's first button with this name or description, as "x y".
-centre() {
-  osascript - "$app_pid" "$1" <<'EOF' 2>/dev/null
-on run argv
-  tell application "System Events" to tell (first process whose unix id is ((item 1 of argv) as integer))
-    repeat with e in (entire contents of front window)
-      try
-        if role of e is in {"AXButton", "AXMenuButton"} and ((name of e is (item 2 of argv)) or (description of e is (item 2 of argv))) then
-          set {x, y} to position of e
-          set {w, h} to size of e
-          return ((x + w / 2) as integer as text) & " " & ((y + h / 2) as integer as text)
-        end if
-      end try
-    end repeat
-  end tell
-  return ""
-end run
-EOF
-}
+# The centre of the app's first button with this text, as "x y".
+centre() { ui centre "$1"; }
 
 # Rests the pointer on a button until its hint shows.
 hover() {
