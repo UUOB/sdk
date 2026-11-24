@@ -831,6 +831,10 @@ private struct HintOnHover: ViewModifier {
     func body(content: Content) -> some View {
         content
             .accessibilityLabel(text)
+            // Also the help text (AXHelp), which .help() gave before: what
+            // scripts and assistive tools find a button by, without the
+            // system's own tooltip on top of this one.
+            .accessibilityHint(text)
             .onHover { inside in inside ? HintPanel.shared.arm(text) : HintPanel.shared.hide() }
             .onDisappear { HintPanel.shared.hide() }
     }
@@ -849,11 +853,22 @@ private struct HintOnHover: ViewModifier {
         timer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { _ in
             MainActor.assumeIsolated { self.show(text) }
         }
+        // A click, key or scroll while waiting (a click that opens a sheet) means
+        // no hint at all, not one shown over what the click opened.
+        clicks = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { e in
+            MainActor.assumeIsolated { self.hide() }
+            return e
+        }
     }
 
     private func show(_ text: String) {
         let view = NSHostingView(rootView: HintLabel(text: text))
-        view.frame.size = view.fittingSize
+        // The size from the words themselves (HintLabel's font and padding):
+        // a hosting view not yet in a window can measure itself too small and
+        // then grow the panel past the screen's edge, so it doesn't size it.
+        view.sizingOptions = []
+        let words = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)])
+        view.frame.size = NSSize(width: ceil(words.width) + 18, height: ceil(words.height) + 10)
         let p = panel ?? {
             let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
             p.isOpaque = false
@@ -869,16 +884,12 @@ private struct HintOnHover: ViewModifier {
         // Under the pointer, as the system's hints; kept on the pointer's screen.
         let mouse = NSEvent.mouseLocation
         var origin = NSPoint(x: mouse.x - 4, y: mouse.y - 26 - view.frame.height)
-        if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })?.visibleFrame {
+        if let screen = (NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main)?.visibleFrame {
             origin.x = min(max(origin.x, screen.minX + 4), screen.maxX - view.frame.width - 4)
             if origin.y < screen.minY + 4 { origin.y = mouse.y + 18 }
         }
         p.setFrame(NSRect(origin: origin, size: view.frame.size), display: true)
         p.orderFrontRegardless()
-        clicks = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown, .scrollWheel]) { e in
-            MainActor.assumeIsolated { self.hide() }
-            return e
-        }
     }
 
     func hide() {

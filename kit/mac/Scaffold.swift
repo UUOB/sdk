@@ -314,7 +314,7 @@ struct EditSheet<Under: View, Content: View>: View {
             }
             .padding(22)
         }
-        .frame(width: sheetWidth(460)).frame(minHeight: 240, maxHeight: 640)
+        .frame(width: sheetWidth(460)).frame(maxHeight: 640)
         .fixedSize(horizontal: false, vertical: true)
         .background(Look.elevated)
         .foregroundStyle(Look.text)
