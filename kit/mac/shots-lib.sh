@@ -179,14 +179,14 @@ let request = VNRecognizeTextRequest()
 request.recognitionLevel = .accurate
 request.usesLanguageCorrection = false
 try? VNImageRequestHandler(cgImage: cg).perform([request])
-var best: (Double, CGPoint)?
+var best: (CGFloat, CGPoint)?
 for o in request.results ?? [] {
     guard let c = o.topCandidates(1).first else { continue }
     let s = c.string.lowercased()
     guard part ? s.contains(want) : (s == want || s.hasPrefix(want + " ") || s.hasSuffix(" " + want)) else { continue }
     var box = o.boundingBox
     // Just the words asked for, when the line holds more.
-    if let r = s.range(of: want), let b = try? c.boundingBox(for: r)?.boundingBox { box = b }
+    if let r = c.string.range(of: want, options: .caseInsensitive), let b = try? c.boundingBox(for: r)?.boundingBox { box = b }
     let p = CGPoint(x: box.midX * screen.width, y: (1 - box.midY) * screen.height)
     let d = hypot(p.x - screen.width / 2, p.y - screen.height / 2)
     if best == nil || d < best!.0 { best = (d, p) }
