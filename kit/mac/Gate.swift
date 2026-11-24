@@ -252,6 +252,7 @@ struct Gate<Content: View>: View {
                 .padding(.top, 22).padding(.bottom, 14)
                 Button("Connect to UUOB") { connect(withCode: false) }
                     .buttonStyle(UuobButton(.primary, large: true)).environment(\.fillButtons, true)
+                    .accessibilityLabel("Connect to UUOB")
                 errorText
                 if useCode {
                     codeForm
