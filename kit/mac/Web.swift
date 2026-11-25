@@ -869,6 +869,11 @@ private struct HintOnHover: ViewModifier {
         view.sizingOptions = []
         let words = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)])
         view.frame.size = NSSize(width: ceil(words.width) + 18, height: ceil(words.height) + 10)
+        // Never narrower than the label lays itself out. Kept in `size`: the
+        // panel resizes its content view to its own frame, so the view's frame
+        // can't be read back once it's in the panel.
+        let laid = view.fittingSize
+        let size = NSSize(width: max(view.frame.width, ceil(laid.width)), height: max(view.frame.height, ceil(laid.height)))
         let p = panel ?? {
             let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
             p.isOpaque = false
@@ -880,24 +885,21 @@ private struct HintOnHover: ViewModifier {
             return p
         }()
         panel = p
-        p.contentView = view
-        // Never narrower than the label lays itself out, once in the panel.
-        view.layoutSubtreeIfNeeded()
-        let laid = view.fittingSize
-        view.frame.size = NSSize(width: max(view.frame.width, ceil(laid.width)), height: max(view.frame.height, ceil(laid.height)))
         // Under the pointer, as the system's hints; kept on the pointer's screen
         // and within the window under it (a screen can report itself wider than
         // it shows, as on GitHub's Macs, and a window is always where it's seen).
         let mouse = NSEvent.mouseLocation
-        var origin = NSPoint(x: mouse.x - 4, y: mouse.y - 26 - view.frame.height)
+        var origin = NSPoint(x: mouse.x - 4, y: mouse.y - 26 - size.height)
         let screen = (NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main)?.visibleFrame
         let window = NSApp.orderedWindows.first(where: { $0 !== p && $0.isVisible && NSMouseInRect(mouse, $0.frame, false) })?.frame
         var left = -CGFloat.infinity, right = CGFloat.infinity
         for f in [screen, window].compactMap({ $0 }) { left = max(left, f.minX); right = min(right, f.maxX) }
-        if right.isFinite { origin.x = min(origin.x, right - view.frame.width - 4) }
+        if right.isFinite { origin.x = min(origin.x, right - size.width - 4) }
         if left.isFinite { origin.x = max(origin.x, left + 4) }
         if let screen, origin.y < screen.minY + 4 { origin.y = mouse.y + 18 }
-        p.setFrame(NSRect(origin: origin, size: view.frame.size), display: true)
+        p.setFrame(NSRect(origin: origin, size: size), display: false)
+        p.contentView = view
+        view.frame = NSRect(origin: .zero, size: size)
         p.orderFrontRegardless()
     }
 

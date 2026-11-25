@@ -14,7 +14,6 @@ use crate::{btn, icon, icon_btn};
 
 pub(crate) const CSS: &str = "
 .sidebar-col { background: @uuob_rail; }
-.sidebar-col.expanded { min-width: 240px; }
 .sidebar-col.rail { min-width: 64px; }
 .sidebar-peek { box-shadow: 0 0 24px rgba(0,0,0,0.3); }
 button.sidebar-row { min-height: 36px; padding: 0 10px; border-radius: 10px; background: none; box-shadow: none; }
@@ -43,11 +42,16 @@ entry.sheet-title-edit { font-size: 22px; font-weight: 600; background: none; bo
 
 // ---- Sidebar ----------------------------------------------------------------
 
-/// The sidebar and the rest of the window. Three states:
-/// - expanded: 240 wide, names and sections (`sidebar`);
-/// - rail: 64 wide, icons only (`rail`); by itself below 600 wide, or folded
-///   with the toggle at the bottom (remembered in the app's config folder);
-/// - in a narrow window the toggle opens the expanded sidebar over the content.
+/// The sidebar and the rest of the window. Its edge drags:
+/// - wide: 180 to 400 (240 at first), names and sections (`sidebar`);
+/// - rail: 64 wide, icons only (`rail`); dragged narrower than the wide
+///   sidebar, it snaps to this;
+/// - hidden: dragged on past half the rail, nothing; the toggle then sits at
+///   the top left, and the left edge drags it back out.
+/// The toggle at the bottom (Ctrl+Alt+S) folds wide to the rail and back, and
+/// brings a hidden sidebar back as it was. All of it is kept in the app's
+/// config folder. Below 600 wide the rail shows by itself (or nothing, when
+/// hidden), and the toggle opens the wide sidebar over the content.
 pub struct SidebarScaffold {
     root: gtk::Overlay,
     toggle: Rc<dyn Fn()>,
@@ -60,8 +64,15 @@ pub struct SidebarScaffold {
 impl SidebarScaffold {
     /// `app`: the app's id, for where the folded state is kept.
     pub fn new(app: &str, sidebar: &impl IsA<gtk::Widget>, rail: &impl IsA<gtk::Widget>, content: &impl IsA<gtk::Widget>) -> SidebarScaffold {
-        let file = glib::user_config_dir().join(format!("app.uuob.{app}")).join("sidebar-folded");
+        let dir = glib::user_config_dir().join(format!("app.uuob.{app}"));
+        let file = dir.join("sidebar-folded");
+        let hidden_file = dir.join("sidebar-hidden");
+        let width_file = dir.join("sidebar-width");
         let folded = Rc::new(Cell::new(file.exists()));
+        let hidden = Rc::new(Cell::new(hidden_file.exists()));
+        let wide = Rc::new(Cell::new(std::fs::read_to_string(&width_file).ok().and_then(|t| t.trim().parse::<i32>().ok()).unwrap_or(240).clamp(MIN_WIDE, MAX_WIDE)));
+        // The shape while the edge is dragged; kept only when it's let go.
+        let live: Rc<Cell<Option<Fold>>> = Rc::new(Cell::new(None));
         let narrow = Rc::new(Cell::new(false));
         let peek = Rc::new(Cell::new(false));
 
@@ -87,7 +98,8 @@ impl SidebarScaffold {
 
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         row.append(&column);
-        row.append(&gtk::Separator::new(gtk::Orientation::Vertical));
+        let line = gtk::Separator::new(gtk::Orientation::Vertical);
+        row.append(&line);
         // The content can be narrower than it would like, so the window can always
         // shrink to where the rail takes over (it scrolls sideways rather than holding the window wide).
         content.as_ref().set_hexpand(true);
@@ -106,6 +118,18 @@ impl SidebarScaffold {
         let peek_foot = gtk::Box::builder().spacing(8).margin_start(12).margin_bottom(12).build();
         peek_foot.append(&peek_toggle);
         peek_col.append(&peek_foot);
+        // Hidden: the toggle at the top left.
+        let corner_toggle = icon_btn("sidebar", 18, "Toggle sidebar (Ctrl+Alt+S)");
+        corner_toggle.set_halign(gtk::Align::Start);
+        corner_toggle.set_valign(gtk::Align::Start);
+        corner_toggle.set_margin_start(10);
+        corner_toggle.set_margin_top(8);
+        root.add_overlay(&corner_toggle);
+        // The edge to drag: a strip over the line, moved with the sidebar. The drag
+        // itself is the window's (`root`'s), so it goes on when the sidebar snaps.
+        let edge = gtk::Box::builder().width_request(8).halign(gtk::Align::Start).vexpand(true).build();
+        edge.set_cursor_from_name(Some("col-resize"));
+        root.add_overlay(&edge);
         root.add_overlay(&dim);
         root.add_overlay(&peek_col);
         dim.set_visible(false);
@@ -114,12 +138,22 @@ impl SidebarScaffold {
         let apply: Rc<dyn Fn()> = {
             let (column, stack, toggle_btn, side_scroll, peek_col, dim, footer, foot, rail_footer, peek_foot) =
                 (column.clone(), stack.clone(), toggle_btn.clone(), side_scroll.clone(), peek_col.clone(), dim.clone(), footer.clone(), foot.clone(), rail_footer.clone(), peek_foot.clone());
-            let (folded, narrow, peek) = (folded.clone(), narrow.clone(), peek.clone());
+            let (line, edge, corner_toggle, root) = (line.clone(), edge.clone(), corner_toggle.clone(), root.clone());
+            let (folded, hidden, wide, live, narrow, peek) = (folded.clone(), hidden.clone(), wide.clone(), live.clone(), narrow.clone(), peek.clone());
             Rc::new(move || {
-                let expanded = !narrow.get() && !folded.get();
+                let shape = live.get().unwrap_or_else(|| settled(hidden.get(), folded.get(), narrow.get(), wide.get(), root.width()));
+                let expanded = matches!(shape, Fold::Wide(_));
+                let width = shape.width();
+                column.set_visible(shape != Fold::Hidden);
+                line.set_visible(shape != Fold::Hidden);
+                edge.set_margin_start((width - 4).max(0));
+                corner_toggle.set_visible(shape == Fold::Hidden && !(narrow.get() && peek.get()));
                 stack.set_visible_child_name(if expanded { "expanded" } else { "rail" });
                 column.set_css_classes(&["sidebar-col", if expanded { "expanded" } else { "rail" }]);
-                column.set_width_request(if expanded { 240 } else { 64 });
+                column.set_width_request(width);
+                if expanded || side_scroll.parent().is_some_and(|p| p == peek_col.clone().upcast::<gtk::Widget>()) {
+                    side_scroll.set_width_request(if expanded && !(narrow.get() && peek.get()) { width } else { 240 });
+                }
                 toggle_btn.set_halign(if expanded { gtk::Align::End } else { gtk::Align::Center });
                 toggle_btn.set_margin_end(if expanded { 12 } else { 0 });
                 foot.set_margin_start(if expanded { 12 } else { 0 });
@@ -150,18 +184,16 @@ impl SidebarScaffold {
             })
         };
         let toggle: Rc<dyn Fn()> = {
-            let (folded, narrow, peek, apply, file) = (folded.clone(), narrow.clone(), peek.clone(), apply.clone(), file.clone());
+            let (folded, hidden, narrow, peek, apply, file, hidden_file) = (folded.clone(), hidden.clone(), narrow.clone(), peek.clone(), apply.clone(), file.clone(), hidden_file.clone());
             Rc::new(move || {
                 if narrow.get() {
                     peek.set(!peek.get());
+                } else if hidden.get() {
+                    hidden.set(false);
+                    mark(&hidden_file, false);
                 } else {
                     folded.set(!folded.get());
-                    if folded.get() {
-                        let _ = std::fs::create_dir_all(file.parent().unwrap_or(std::path::Path::new(".")));
-                        let _ = std::fs::write(&file, b"1");
-                    } else {
-                        let _ = std::fs::remove_file(&file);
-                    }
+                    mark(&file, folded.get());
                 }
                 apply();
             })
@@ -171,11 +203,67 @@ impl SidebarScaffold {
             toggle_btn.connect_clicked(move |_| t());
             let t = toggle.clone();
             peek_toggle.connect_clicked(move |_| t());
+            let t = toggle.clone();
+            corner_toggle.connect_clicked(move |_| t());
             let (peek, apply) = (peek.clone(), apply.clone());
             dim.connect_clicked(move |_| {
                 peek.set(false);
                 apply();
             });
+        }
+        // Dragging the edge: the pointer's distance from the window's left is the
+        // shape, kept when it's let go (a narrow window's rail leaves the wide
+        // window's choice as it was).
+        {
+            let drag = gtk::GestureDrag::new();
+            let start = Rc::new(Cell::new(0.0));
+            {
+                let (start, edge, apply) = (start.clone(), edge.clone(), apply.clone());
+                drag.connect_drag_begin(move |g, x, _| {
+                    let at = edge.margin_start() as f64;
+                    if x < at - 2.0 || x > at + 10.0 {
+                        g.set_state(gtk::EventSequenceState::Denied);
+                        return;
+                    }
+                    g.set_state(gtk::EventSequenceState::Claimed);
+                    start.set(x);
+                    let _ = &apply;
+                });
+            }
+            {
+                let (start, live, narrow, root, apply) = (start.clone(), live.clone(), narrow.clone(), root.clone(), apply.clone());
+                drag.connect_drag_update(move |_, dx, _| {
+                    live.set(Some(fold_at(start.get() + dx, narrow.get(), root.width())));
+                    apply();
+                });
+            }
+            {
+                let (live, folded, hidden, wide, narrow, apply) = (live.clone(), folded.clone(), hidden.clone(), wide.clone(), narrow.clone(), apply.clone());
+                let (file, hidden_file, width_file) = (file.clone(), hidden_file.clone(), width_file.clone());
+                drag.connect_drag_end(move |_, _, _| {
+                    let Some(shape) = live.take() else { return };
+                    match shape {
+                        Fold::Hidden => hidden.set(true),
+                        Fold::Rail => {
+                            hidden.set(false);
+                            if !narrow.get() {
+                                folded.set(true);
+                            }
+                        }
+                        Fold::Wide(w) => {
+                            hidden.set(false);
+                            folded.set(false);
+                            wide.set(w);
+                            let _ = std::fs::create_dir_all(width_file.parent().unwrap_or(std::path::Path::new(".")));
+                            let _ = std::fs::write(&width_file, w.to_string());
+                        }
+                    }
+                    mark(&hidden_file, hidden.get());
+                    mark(&file, folded.get());
+                    apply();
+                });
+            }
+            root.add_controller(drag);
         }
         // Below 600 wide the rail shows by itself.
         {
@@ -236,6 +324,67 @@ impl SidebarScaffold {
     /// after a row there was picked; nothing otherwise.
     pub fn closer(&self) -> Rc<dyn Fn()> {
         self.close.clone()
+    }
+}
+
+const MIN_WIDE: i32 = 180;
+const MAX_WIDE: i32 = 400;
+const RAIL: i32 = 64;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Fold {
+    Hidden,
+    Rail,
+    Wide(i32),
+}
+
+impl Fold {
+    fn width(self) -> i32 {
+        match self {
+            Fold::Hidden => 0,
+            Fold::Rail => RAIL,
+            Fold::Wide(w) => w,
+        }
+    }
+}
+
+/// The wide sidebar's width, never leaving the content less than 360.
+fn clamp_wide(w: i32, window: i32) -> i32 {
+    let most = if window > 0 { (window - 360).min(MAX_WIDE) } else { MAX_WIDE };
+    w.min(most).max(MIN_WIDE)
+}
+
+/// What's kept: hidden, the rail, or the wide sidebar; only the rail or nothing below 600.
+fn settled(hidden: bool, folded: bool, narrow: bool, wide: i32, window: i32) -> Fold {
+    if hidden {
+        Fold::Hidden
+    } else if narrow || folded {
+        Fold::Rail
+    } else {
+        Fold::Wide(clamp_wide(wide, window))
+    }
+}
+
+/// The pointer's distance from the window's left, as a shape: past half the
+/// rail it's nothing, short of halfway to the wide sidebar the rail.
+fn fold_at(x: f64, narrow: bool, window: i32) -> Fold {
+    let x = x.round() as i32;
+    if x < RAIL / 2 {
+        Fold::Hidden
+    } else if narrow || x < (RAIL + MIN_WIDE) / 2 {
+        Fold::Rail
+    } else {
+        Fold::Wide(clamp_wide(x, window))
+    }
+}
+
+/// Keeps a yes/no in the config folder as a file that's there or not.
+fn mark(file: &std::path::Path, on: bool) {
+    if on {
+        let _ = std::fs::create_dir_all(file.parent().unwrap_or(std::path::Path::new(".")));
+        let _ = std::fs::write(file, b"1");
+    } else {
+        let _ = std::fs::remove_file(file);
     }
 }
 

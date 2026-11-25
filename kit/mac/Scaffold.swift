@@ -12,11 +12,17 @@ extension Notification.Name {
     static let uuobToggleSidebar = Notification.Name("uuob.toggleSidebar")
 }
 
-/// The sidebar and the rest of the window. Three states:
-/// - expanded: 240 points, names and sections (`sidebar`);
-/// - rail: 64 points, icons only, names as tooltips (`rail`); by itself below
-///   600 points, or when folded with the toggle at the bottom (remembered);
-/// - in a narrow window the toggle opens the expanded sidebar over the content.
+/// The sidebar and the rest of the window. Its edge drags, as Finder's:
+/// - wide: 180 to 400 points (240 at first), names and sections (`sidebar`);
+/// - rail: icons only, names as hints (`rail`), as wide as the window's
+///   buttons so they never stick out past it; dragged narrower than the wide
+///   sidebar, it snaps to this;
+/// - hidden: dragged on past half the rail, nothing; the toggle then sits
+///   beside the window's buttons, and the left edge drags it back out.
+/// The toggle at the bottom (and ⌃⌘S) folds wide to the rail and back, and
+/// brings a hidden sidebar back as it was. All of it is kept per device.
+/// Below 600 points the rail shows by itself (or nothing, when hidden), and
+/// the toggle opens the wide sidebar over the content.
 struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, RailFooter: View>: View {
     @ViewBuilder var sidebar: () -> Side
     @ViewBuilder var rail: () -> Rail
@@ -27,38 +33,113 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, Rail
     @ViewBuilder var footer: () -> Footer
     /// The rail's foot, above the toggle: a `RailButton`, a small mark.
     @ViewBuilder var railFooter: () -> RailFooter
-    /// Folded by hand (kept between launches, per device).
+    /// Folded to the rail (kept between launches, per device).
     @AppStorage("sidebar.folded") private var folded = false
+    /// Dragged away to nothing; folded keeps what the toggle brings back.
+    @AppStorage("sidebar.hidden") private var hidden = false
+    /// The wide sidebar's width, as last dragged.
+    @AppStorage("sidebar.width") private var wideWidth: Double = 240
+    /// The shape while the edge is being dragged; kept only when it's let go.
+    @State private var live: Fold?
     /// The expanded sidebar opened over the content in a narrow window.
     @State private var peek = false
+    /// The window's buttons: where the zoom button ends, and their middle (from the top).
+    @State private var buttons = CGPoint(x: 70, y: 14)
+
+    private enum Fold: Equatable { case hidden, rail, wide(CGFloat) }
+    private static var minWide: CGFloat { 180 }
+    private static var maxWide: CGFloat { 400 }
+    /// At least 64 points, and past the zoom button.
+    private var railWidth: CGFloat { max(64, ceil(buttons.x) + 10) }
 
     var body: some View {
         GeometryReader { geo in
             let narrow = geo.size.width < 600
-            let expanded = !narrow && !folded
-            ZStack(alignment: .leading) {
+            let shape = live ?? settled(narrow: narrow, window: geo.size.width)
+            let width = self.width(shape)
+            ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
-                    column(expanded: expanded)
-                    Rectangle().fill(Look.line).frame(width: 1)
+                    if shape != .hidden {
+                        column(shape)
+                        Rectangle().fill(Look.line).frame(width: 1)
+                    }
                     content().frame(maxWidth: .infinity, maxHeight: .infinity)
                         .environment(\.uuobCompact, narrow)
                 }
+                // Hidden: the toggle beside the window's buttons.
+                if shape == .hidden && !peek {
+                    toggleButton(expanded: false)
+                        .padding(.leading, buttons.x + 4).padding(.top, max(0, buttons.y - 18))
+                }
+                // The edge to drag, one view whatever the shape, so a drag that
+                // snaps to the rail or to nothing goes on and can come back.
+                Color.clear.frame(width: 8).frame(maxHeight: .infinity)
+                    .background(ResizeCursor())
+                    .contentShape(Rectangle())
+                    .offset(x: max(0, width - 4))
+                    .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named(Self.space))
+                        .onChanged { live = self.shape(at: $0.location.x, narrow: narrow, window: geo.size.width) }
+                        .onEnded { _ in keep(narrow: narrow) })
                 if narrow && peek {
                     Color.black.opacity(0.25).ignoresSafeArea().onTapGesture { withAnimation(.easeOut(duration: 0.2)) { peek = false } }
-                    column(expanded: true).shadow(color: .black.opacity(0.25), radius: 18)
+                    column(.wide(240)).shadow(color: .black.opacity(0.25), radius: 18)
                         .transition(.move(edge: .leading))
                         // A row that goes somewhere closes it (`uuobClosePeek`).
                         .environment(\.uuobClosePeek) { withAnimation(.easeOut(duration: 0.2)) { peek = false } }
                 }
             }
+            .coordinateSpace(name: Self.space)
+            .background(WindowButtons { buttons = $0 })
             .onChange(of: narrow) { if !narrow { peek = false } }
             .onReceive(NotificationCenter.default.publisher(for: .uuobToggleSidebar)) { _ in toggle(narrow: narrow) }
         }
     }
 
+    private static var space: String { "uuob.sidebar" }
+
+    /// What's kept: hidden, the rail, or the wide sidebar (never wider than
+    /// leaves the content 360 points); only the rail or nothing below 600.
+    private func settled(narrow: Bool, window: CGFloat) -> Fold {
+        if hidden { return .hidden }
+        if narrow || folded { return .rail }
+        return .wide(clampWide(CGFloat(wideWidth), window: window))
+    }
+
+    private func clampWide(_ w: CGFloat, window: CGFloat) -> CGFloat {
+        min(max(w, Self.minWide), max(Self.minWide, min(Self.maxWide, window - 360)))
+    }
+
+    /// The pointer's distance from the window's left edge, as a shape: past
+    /// half the rail it's nothing, short of halfway to the wide sidebar the rail.
+    private func shape(at x: CGFloat, narrow: Bool, window: CGFloat) -> Fold {
+        if x < railWidth / 2 { return .hidden }
+        if narrow || x < (railWidth + Self.minWide) / 2 { return .rail }
+        return .wide(clampWide(x, window: window))
+    }
+
+    private func width(_ shape: Fold) -> CGFloat {
+        switch shape {
+        case .hidden: 0
+        case .rail: railWidth
+        case .wide(let w): w
+        }
+    }
+
+    /// Lets go of a drag: the shape is kept (a narrow window's rail leaves
+    /// the wide window's choice as it was).
+    private func keep(narrow: Bool) {
+        guard let shape = live else { return }
+        switch shape {
+        case .hidden: hidden = true
+        case .rail: hidden = false; if !narrow { folded = true }
+        case .wide(let w): hidden = false; folded = false; wideWidth = Double(w)
+        }
+        live = nil
+    }
+
     private func toggle(narrow: Bool) {
         withAnimation(.easeOut(duration: 0.2)) {
-            if narrow { peek.toggle() } else { folded.toggle() }
+            if narrow { peek.toggle() } else if hidden { hidden = false } else { folded.toggle() }
         }
     }
 
@@ -68,8 +149,9 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, Rail
         }
     }
 
-    private func column(expanded: Bool) -> some View {
-        VStack(spacing: 0) {
+    private func column(_ shape: Fold) -> some View {
+        let expanded = shape != .rail
+        return VStack(spacing: 0) {
             if expanded { sidebar().frame(maxHeight: .infinity, alignment: .top) } else { rail().frame(maxHeight: .infinity, alignment: .top) }
             if expanded {
                 HStack(spacing: 8) {
@@ -87,10 +169,40 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, Rail
                 .frame(maxWidth: .infinity).padding(.bottom, 12)
             }
         }
-        .frame(width: expanded ? 240 : 64)
+        .frame(width: width(shape))
         .frame(maxHeight: .infinity)
         .background(Look.rail)
     }
+}
+
+/// The left-right arrows over the sidebar's edge (it takes no clicks itself).
+private struct ResizeCursor: NSViewRepresentable {
+    final class Area: NSView {
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeLeftRight) }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+    func makeNSView(context: Context) -> NSView { Area() }
+    func updateNSView(_ nsView: NSView, context: Context) { nsView.window?.invalidateCursorRects(for: nsView) }
+}
+
+/// Reports where the window's buttons (close, minimise, zoom) are: the zoom
+/// button's right edge from the window's left, and their middle from its top.
+private struct WindowButtons: NSViewRepresentable {
+    let report: (CGPoint) -> Void
+    final class Probe: NSView {
+        var report: (CGPoint) -> Void = { _ in }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, let zoom = window.standardWindowButton(.zoomButton), let bar = zoom.superview else { return }
+            let r = bar.convert(zoom.frame, to: nil)
+            let top = window.contentView?.bounds.height ?? window.frame.height
+            let found = CGPoint(x: r.maxX, y: top - r.midY)
+            DispatchQueue.main.async { [report] in report(found) }
+        }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+    func makeNSView(context: Context) -> Probe { let p = Probe(); p.report = report; return p }
+    func updateNSView(_ nsView: Probe, context: Context) { nsView.report = report }
 }
 
 extension SidebarScaffold where Footer == EmptyView, RailFooter == EmptyView {

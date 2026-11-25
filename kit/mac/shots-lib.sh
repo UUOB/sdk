@@ -219,6 +219,7 @@ pointer() {
   [ -x "$tool" ] || {
     cat > "$RUNNER_TEMP/pointer.swift" <<'EOF'
 import CoreGraphics
+import Foundation
 let a = CommandLine.arguments
 let p = CGPoint(x: Double(a[1])!, y: Double(a[2])!)
 CGWarpMouseCursorPosition(p)
@@ -229,6 +230,18 @@ if a.count > 3 && a[3] == "left" {
 }
 if a.count > 4 && a[3] == "scroll" {
     CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: Int32(a[4])!, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+}
+if a.count > 5 && a[3] == "drag" {
+    // Pressed here, moved in steps to the point given, let go there.
+    let to = CGPoint(x: Double(a[4])!, y: Double(a[5])!)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+    for i in 1...12 {
+        let q = CGPoint(x: p.x + (to.x - p.x) * Double(i) / 12, y: p.y + (to.y - p.y) * Double(i) / 12)
+        usleep(40_000)
+        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: q, mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
+    usleep(80_000)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: to, mouseButton: .left)?.post(tap: .cghidEventTap)
 }
 if a.count > 3 && a[3] == "right" {
     CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
