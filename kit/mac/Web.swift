@@ -881,13 +881,22 @@ private struct HintOnHover: ViewModifier {
         }()
         panel = p
         p.contentView = view
-        // Under the pointer, as the system's hints; kept on the pointer's screen.
+        // Never narrower than the label lays itself out, once in the panel.
+        view.layoutSubtreeIfNeeded()
+        let laid = view.fittingSize
+        view.frame.size = NSSize(width: max(view.frame.width, ceil(laid.width)), height: max(view.frame.height, ceil(laid.height)))
+        // Under the pointer, as the system's hints; kept on the pointer's screen
+        // and within the window under it (a screen can report itself wider than
+        // it shows, as on GitHub's Macs, and a window is always where it's seen).
         let mouse = NSEvent.mouseLocation
         var origin = NSPoint(x: mouse.x - 4, y: mouse.y - 26 - view.frame.height)
-        if let screen = (NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main)?.visibleFrame {
-            origin.x = min(max(origin.x, screen.minX + 4), screen.maxX - view.frame.width - 4)
-            if origin.y < screen.minY + 4 { origin.y = mouse.y + 18 }
-        }
+        let screen = (NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main)?.visibleFrame
+        let window = NSApp.orderedWindows.first(where: { $0 !== p && $0.isVisible && NSMouseInRect(mouse, $0.frame, false) })?.frame
+        var left = -CGFloat.infinity, right = CGFloat.infinity
+        for f in [screen, window].compactMap({ $0 }) { left = max(left, f.minX); right = min(right, f.maxX) }
+        if right.isFinite { origin.x = min(origin.x, right - view.frame.width - 4) }
+        if left.isFinite { origin.x = max(origin.x, left + 4) }
+        if let screen, origin.y < screen.minY + 4 { origin.y = mouse.y + 18 }
         p.setFrame(NSRect(origin: origin, size: view.frame.size), display: true)
         p.orderFrontRegardless()
     }
