@@ -17,8 +17,8 @@ extension Notification.Name {
 /// - rail: icons only, names as hints (`rail`), as wide as the window's
 ///   buttons so they never stick out past it; dragged narrower than the wide
 ///   sidebar, it snaps to this;
-/// - hidden: dragged on past half the rail, nothing; the toggle then sits
-///   beside the window's buttons, and the left edge drags it back out.
+/// - hidden: dragged on past half the rail, nothing; the toggle then stays at
+///   the bottom left, where it is on the rail, and the left edge drags it back out.
 /// The toggle at the bottom (and ⌃⌘S) folds wide to the rail and back, and
 /// brings a hidden sidebar back as it was. All of it is kept per device.
 /// Below 600 points the rail shows by itself (or nothing, when hidden), and
@@ -66,10 +66,11 @@ struct SidebarScaffold<Side: View, Rail: View, Content: View, Footer: View, Rail
                     content().frame(maxWidth: .infinity, maxHeight: .infinity)
                         .environment(\.uuobCompact, narrow)
                 }
-                // Hidden: the toggle beside the window's buttons.
+                // Hidden: the toggle at the bottom left, where it is on the rail.
                 if shape == .hidden && !peek {
                     toggleButton(expanded: false)
-                        .padding(.leading, buttons.x + 4).padding(.top, max(0, buttons.y - 18))
+                        .frame(width: railWidth).padding(.bottom, 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
                 // The edge to drag, one view whatever the shape, so a drag that
                 // snaps to the rail or to nothing goes on and can come back.

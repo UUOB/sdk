@@ -118,12 +118,13 @@ impl SidebarScaffold {
         let peek_foot = gtk::Box::builder().spacing(8).margin_start(12).margin_bottom(12).build();
         peek_foot.append(&peek_toggle);
         peek_col.append(&peek_foot);
-        // Hidden: the toggle at the top left.
+        // Hidden: the toggle at the bottom left, where it sits on the rail.
+        // (The button is 36 wide, centred on the 64 rail.)
         let corner_toggle = icon_btn("sidebar", 18, "Toggle sidebar (Ctrl+Alt+S)");
         corner_toggle.set_halign(gtk::Align::Start);
-        corner_toggle.set_valign(gtk::Align::Start);
-        corner_toggle.set_margin_start(10);
-        corner_toggle.set_margin_top(8);
+        corner_toggle.set_valign(gtk::Align::End);
+        corner_toggle.set_margin_start((RAIL - 36) / 2);
+        corner_toggle.set_margin_bottom(12);
         root.add_overlay(&corner_toggle);
         // The edge to drag: a strip over the line, moved with the sidebar. The drag
         // itself is the window's (`root`'s), so it goes on when the sidebar snaps.
